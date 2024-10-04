@@ -9,11 +9,6 @@ function testReadEmptyPacket() {
   const expectedLength = 1
 
   assert(
-    EmptyPacket.maximumByteLength === expectedLength,
-    `EmptyPacket max len != ${expectedLength}`
-  )
-
-  assert(
     EmptyPacket.minimumByteLength === expectedLength,
     `EmptyPacket min len != ${expectedLength}`
   )
@@ -48,11 +43,6 @@ function testReadSimplePacket() {
   })
 
   const expectedLength = 1 + 1 + 1 + 2
-
-  assert(
-    SimplePacket.maximumByteLength === expectedLength,
-    `SimplePacket max len != ${expectedLength}`
-  )
 
   assert(
     SimplePacket.minimumByteLength === expectedLength,
@@ -116,7 +106,6 @@ function testReadComplexPacket() {
   const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0)
   const expectedMaxLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 4 + (1 + 1 + 256 * 1)
 
-  assert.equal(ComplexPacket.maximumByteLength, expectedMaxLength)
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))

@@ -126,36 +126,9 @@ export namespace BinaryPacket {
     return min
   }
 
-  function maximumByteLength(entries: Entries) {
-    // 1 = Packet ID
-    let max = 1
-
-    for (const [, type] of entries) {
-      if (isArray(type)) {
-        let itemSize: number
-
-        if (type[0] instanceof BinaryPacket) {
-          itemSize = type[0].maximumByteLength
-        } else {
-          itemSize = BYTE_SIZE[type[0]]
-        }
-
-        // 1 = Array length
-        max += 1 + 256 * itemSize
-      } else if (type instanceof BinaryPacket) {
-        max += type.maximumByteLength
-      } else {
-        max += BYTE_SIZE[type]
-      }
-    }
-
-    return max
-  }
-
   class BinaryPacket<T extends Definition> {
     private readonly entries: Entries
     readonly minimumByteLength: number
-    readonly maximumByteLength: number
 
     constructor(
       private readonly packetId: number,
@@ -163,14 +136,10 @@ export namespace BinaryPacket {
     ) {
       this.entries = definition ? sortEntries(definition) : []
       this.minimumByteLength = minimumByteLength(this.entries)
-      this.maximumByteLength = maximumByteLength(this.entries)
     }
 
     read(dataIn: DataView, offsetPointer: { offset: number } = { offset: 0 }): ToJson<T> {
-      if (
-        dataIn.byteLength < this.minimumByteLength + offsetPointer.offset ||
-        dataIn.byteLength > this.maximumByteLength + offsetPointer.offset
-      ) {
+      if (dataIn.byteLength < this.minimumByteLength + offsetPointer.offset) {
         throw new Error(
           `There is no space available to fit a packet of type ${this.packetId} at offset ${offsetPointer.offset}`
         )
@@ -215,7 +184,7 @@ export namespace BinaryPacket {
     }
 
     // TODO
-    write(dataOut: DataView, data: ToJson<T>, baseOffset = 0) {}
+    write(dataOut: DataView, data: ToJson<T>, offsetPointer = { offset: 0 }) {}
   }
 
   const BYTE_SIZE: number[] = Array(8)
