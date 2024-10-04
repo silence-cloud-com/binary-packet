@@ -108,26 +108,34 @@ export namespace BinaryPacket {
     return Array.isArray(arg)
   }
 
-  function minimumByteLength(entries: Entries) {
+  function inspectEntries(entries: Entries) {
     // 1 = Packet ID
-    let min = 1
+    let minimumByteLength = 1
 
-    for (const [, type] of entries) {
+    let hasArrays = false
+    const topLevelArrays: string[] = []
+
+    for (const [name, type] of entries) {
       if (isArray(type)) {
         // 1 = Array length
-        min += 1
+        minimumByteLength += 1
+        hasArrays = true
+        topLevelArrays.push(name)
       } else if (type instanceof BinaryPacket) {
-        min += type.minimumByteLength
+        minimumByteLength += type.minimumByteLength
+        hasArrays ||= type.hasArrays
       } else {
-        min += BYTE_SIZE[type]
+        minimumByteLength += BYTE_SIZE[type]
       }
     }
 
-    return min
+    return { minimumByteLength, topLevelArrays }
   }
 
   class BinaryPacket<T extends Definition> {
     private readonly entries: Entries
+    private readonly topLevelArrays: string[]
+    readonly hasArrays: boolean
     readonly minimumByteLength: number
 
     constructor(
@@ -135,7 +143,11 @@ export namespace BinaryPacket {
       definition?: T
     ) {
       this.entries = definition ? sortEntries(definition) : []
-      this.minimumByteLength = minimumByteLength(this.entries)
+      const inspection = inspectEntries(this.entries)
+
+      this.minimumByteLength = inspection.minimumByteLength
+      this.topLevelArrays = inspection.topLevelArrays
+      this.hasArrays = inspection.topLevelArrays.length > 0
     }
 
     read(dataIn: DataView, offsetPointer: { offset: number } = { offset: 0 }): ToJson<T> {
@@ -184,7 +196,29 @@ export namespace BinaryPacket {
     }
 
     // TODO
-    write(dataOut: DataView, data: ToJson<T>, offsetPointer = { offset: 0 }) {}
+    write(dataOut: ToJson<T>, offsetPointer = { offset: 0 }): DataView {
+      if (!this.hasArrays) {
+        const view = new DataView(new ArrayBuffer(this.minimumByteLength))
+        this.fastWrite(view, dataOut, offsetPointer)
+        return view
+      }
+
+      // TODO
+      throw new Error('TODO')
+    }
+
+    private fastWrite(view: DataView, dataOut: ToJson<T>, offsetPointer: { offset: number }) {
+      for (const [name, def] of this.entries) {
+        if (typeof def === 'object') {
+          // In fastWrite there cannot be arrays
+          const bpDef = def as BinaryPacket<Definition>
+          bpDef.fastWrite(view, dataOut[name] as ToJson<Definition>, offsetPointer)
+        } else {
+          SET_FUNCTION[def](view, dataOut[name] as number, offsetPointer.offset)
+          offsetPointer.offset += BYTE_SIZE[def]
+        }
+      }
+    }
   }
 
   const BYTE_SIZE: number[] = Array(8)
@@ -214,4 +248,18 @@ export namespace BinaryPacket {
   GET_FUNCTION[Field.FLOAT_32] = (view, offset) => view.getFloat32(offset)
 
   GET_FUNCTION[Field.FLOAT_64] = (view, offset) => view.getFloat64(offset)
+
+  const SET_FUNCTION: ((view: DataView, value: number, offset: number) => void)[] = Array(8)
+
+  SET_FUNCTION[Field.UNSIGNED_INT_8] = (view, value, offset) => view.setUint8(offset, value)
+  SET_FUNCTION[Field.INT_8] = (view, value, offset) => view.setInt8(offset, value)
+
+  SET_FUNCTION[Field.UNSIGNED_INT_16] = (view, value, offset) => view.setUint16(offset, value)
+  SET_FUNCTION[Field.INT_16] = (view, value, offset) => view.setInt16(offset, value)
+
+  SET_FUNCTION[Field.UNSIGNED_INT_32] = (view, value, offset) => view.setUint32(offset, value)
+  SET_FUNCTION[Field.INT_32] = (view, value, offset) => view.setInt32(offset, value)
+  SET_FUNCTION[Field.FLOAT_32] = (view, value, offset) => view.setFloat32(offset, value)
+
+  SET_FUNCTION[Field.FLOAT_64] = (view, value, offset) => view.setFloat64(offset, value)
 }
