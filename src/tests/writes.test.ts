@@ -11,12 +11,13 @@ function testWriteEmptyPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') {
   const Packet = BinaryPacket.define(PACKET_ID)
 
   const serialized = Packet[`write${mode}`]({})
+  let data: any
 
   if (mode === 'ArrayBuffer') {
-    console.log(serialized)
+    data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)
+  } else {
+    data = Packet[`read${mode}`](serialized as any)
   }
-
-  const data = Packet[`read${mode}`](serialized as any)
 
   assert.equal(Object.keys(data).length, 0)
 
@@ -38,7 +39,13 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     c: 4294967294
   })
 
-  const data = Packet[`read${mode}`](serialized as any)
+  let data: any
+
+  if (mode === 'ArrayBuffer') {
+    data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)
+  } else {
+    data = Packet[`read${mode}`](serialized as any)
+  }
 
   assert.equal(data.a, -128)
   assert.equal(data.b, 32767)
@@ -89,7 +96,13 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
     h: 1
   })
 
-  const data = Packet[`read${mode}`](serialized as any)
+  let data: any
+
+  if (mode === 'ArrayBuffer') {
+    data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)
+  } else {
+    data = Packet[`read${mode}`](serialized as any)
+  }
 
   assert.equal(data.a, -128)
   assert.equal(data.b, 32767)

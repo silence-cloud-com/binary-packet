@@ -123,19 +123,26 @@ export class BinaryPacket<T extends Definition> {
   }
 
   /**
-   * Reads/deserializes from the given ArrayBuffer.
+   * Reads/deserializes from the given ArrayBuffer. \
+   * WARNING: this method is practically a HACK.
+   *
+   * When using this method both the `byteOffset` and `byteLength` are REQUIRED and cannot be defaulted. \
+   * This is to prevent serious bugs and security issues. \
+   * That is because often raw ArrayBuffers come from a pre-allocated buffer pool and do not start at byteOffset 0.
    *
    * NOTE: if you have a node Buffer do not bother wrapping it into an ArrayBuffer yourself. \
-   * NOTE: if you have a node Buffer use the appropriate `readNodeBuffer` as it is much faster.
+   * NOTE: if you have a node Buffer use the appropriate `readNodeBuffer` as it is much faster and less error prone.
    */
   readArrayBuffer(
     dataIn: ArrayBuffer & { buffer?: undefined },
-    offsetPointer = { offset: 0 },
-    byteLength = dataIn.byteLength
+    byteOffset: number,
+    byteLength: number
   ) {
     return this.read(
-      hasNodeBuffers ? Buffer.from(dataIn, 0, byteLength) : new DataView(dataIn, 0, byteLength),
-      offsetPointer,
+      hasNodeBuffers
+        ? Buffer.from(dataIn, byteOffset, byteLength)
+        : new DataView(dataIn, byteOffset, byteLength),
+      { offset: 0 }, // The underlying buffer has already been offsetted
       byteLength,
       hasNodeBuffers ? GET_FUNCTION_BUF : GET_FUNCTION
     )
@@ -147,27 +154,32 @@ export class BinaryPacket<T extends Definition> {
    *
    * If possible, always prefer writing using this method, as it is much faster than the other ones.
    */
-  writeNodeBuffer(dataOut: ToJson<T>, offsetPointer = { offset: 0 }) {
+  writeNodeBuffer(dataOut: ToJson<T>) {
     const buffer = Buffer.allocUnsafe(this.minimumByteLength)
-    return this.write(buffer, dataOut, offsetPointer, SET_FUNCTION_BUF, growNodeBuffer)
+    return this.write(buffer, dataOut, { offset: 0 }, SET_FUNCTION_BUF, growNodeBuffer)
   }
 
   /**
    * Writes/serializes the given object into a DataView. \
    */
-  writeDataView(dataOut: ToJson<T>, offsetPointer = { offset: 0 }) {
+  writeDataView(dataOut: ToJson<T>) {
     const dataview = new DataView(new ArrayBuffer(this.minimumByteLength))
-    return this.write(dataview, dataOut, offsetPointer, SET_FUNCTION, growDataView)
+    return this.write(dataview, dataOut, { offset: 0 }, SET_FUNCTION, growDataView)
   }
 
   /**
    * Writes/serializes the given object into an ArrayBuffer. \
-   * This method is just a wrapper around either  `writeNodeBuffer` or `writeDataView`.
+   * This method is just a wrapper around either  `writeNodeBuffer` or `writeDataView`. \
+   *
+   * This method works with JavaScript standard raw ArrayBuffer(s) and, as such, is very error prone: \
+   * Make sure you're using the returned byteLength and byteOffset fields in the read counterpart. \
+   *
+   * Always consider whether is possible to use directly `writeNodeBuffer` or `writeDataView` instead of `writeArrayBuffer`. \
+   * For more information read the `readArrayBuffer` documentation.
    */
-  writeArrayBuffer(dataOut: ToJson<T>, offsetPointer = { offset: 0 }) {
-    return hasNodeBuffers
-      ? this.writeNodeBuffer(dataOut, offsetPointer).buffer
-      : this.writeDataView(dataOut, offsetPointer).buffer
+  writeArrayBuffer(dataOut: ToJson<T>) {
+    const buf = hasNodeBuffers ? this.writeNodeBuffer(dataOut) : this.writeDataView(dataOut)
+    return { buffer: buf.buffer, byteLength: buf.byteLength, byteOffset: buf.byteOffset }
   }
 
   private read(
@@ -244,7 +256,7 @@ export class BinaryPacket<T extends Definition> {
     if (this.canFastWrite) {
       // If there are no arrays, the minimumByteLength always equals to the full needed byteLength.
       // So we can take the fast path, since we know beforehand that the buffer isn't going to grow.
-      this.fastWrite(buffer, dataOut, offsetPointer, this.minimumByteLength, writeFunctions)
+      this.fastWrite(buffer, dataOut, offsetPointer, writeFunctions)
       return buffer
     } else {
       // If non-empty arrays are encountered, the buffer must grow.
@@ -265,7 +277,6 @@ export class BinaryPacket<T extends Definition> {
     buffer: Buf,
     dataOut: ToJson<T>,
     offsetPointer: { offset: number },
-    byteLength: number,
     writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF
   ) {
     for (const [name, def] of this.entries) {
@@ -276,7 +287,6 @@ export class BinaryPacket<T extends Definition> {
           buffer,
           dataOut[name] as ToJson<Definition>,
           offsetPointer,
-          byteLength,
           writeFunctions
         )
       } else {
