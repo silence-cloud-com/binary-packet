@@ -1,5 +1,5 @@
 import assert from 'assert/strict'
-import { BinaryPacket } from '..'
+import { BinaryPacket, Field, FieldArray } from '..'
 
 function testReadEmptyPacket() {
   const PACKET_ID = 1
@@ -16,17 +16,17 @@ function testReadEmptyPacket() {
   const view = new DataView(new ArrayBuffer(expectedLength))
   view.setUint8(0, PACKET_ID)
 
-  EmptyPacket.read(view)
+  EmptyPacket.readDataView(view)
 
   try {
-    EmptyPacket.read(view, { offset: expectedLength })
+    EmptyPacket.readDataView(view, { offset: expectedLength })
     assert(false, 'Could read from outside the offset')
   } catch {}
 
   // Try changing packet ID : read should fail
   view.setUint8(0, PACKET_ID + 1)
   try {
-    EmptyPacket.read(view)
+    EmptyPacket.readDataView(view)
     assert(false, 'Could read EmptyPacket from a non-EmptyPacket dataview')
   } catch {}
 
@@ -37,9 +37,9 @@ function testReadSimplePacket() {
   const PACKET_ID = 1
 
   const SimplePacket = BinaryPacket.define(PACKET_ID, {
-    a: BinaryPacket.Field.UNSIGNED_INT_8,
-    b: BinaryPacket.Field.UNSIGNED_INT_8,
-    c: BinaryPacket.Field.INT_16
+    a: Field.UNSIGNED_INT_8,
+    b: Field.UNSIGNED_INT_8,
+    c: Field.INT_16
   })
 
   const expectedLength = 1 + 1 + 1 + 2
@@ -52,7 +52,7 @@ function testReadSimplePacket() {
   const view = new DataView(new ArrayBuffer(expectedLength))
   view.setUint8(0, PACKET_ID)
 
-  let data = SimplePacket.read(view)
+  let data = SimplePacket.readDataView(view)
 
   console.log('SimplePacket:', data)
 
@@ -65,7 +65,7 @@ function testReadSimplePacket() {
   view.setUint8(2, 234)
   view.setUint16(3, 3456)
 
-  data = SimplePacket.read(view)
+  data = SimplePacket.readDataView(view)
 
   console.log('SimplePacket:', data)
 
@@ -74,14 +74,14 @@ function testReadSimplePacket() {
   assert(data.c === 3456)
 
   try {
-    SimplePacket.read(view, { offset: expectedLength })
+    SimplePacket.readDataView(view, { offset: expectedLength })
     assert(false, 'Could read from outside the offset')
   } catch {}
 
   // Try changing packet ID : read should fail
   view.setUint8(0, PACKET_ID + 1)
   try {
-    SimplePacket.read(view)
+    SimplePacket.readDataView(view)
     assert(false, 'Could read SimplePacket from a non-SimplePacket dataview')
   } catch {}
 
@@ -93,19 +93,17 @@ function testReadComplexPacket() {
   const SUBPACKET_ID = 2
 
   const ComplexPacket = BinaryPacket.define(PACKET_ID, {
-    a: BinaryPacket.Field.UNSIGNED_INT_8,
-    b: BinaryPacket.Field.UNSIGNED_INT_8,
-    c: BinaryPacket.Field.INT_16,
-    d: BinaryPacket.FieldArray(BinaryPacket.Field.INT_32),
+    a: Field.UNSIGNED_INT_8,
+    b: Field.UNSIGNED_INT_8,
+    c: Field.INT_16,
+    d: FieldArray(Field.INT_32),
     e: BinaryPacket.define(SUBPACKET_ID, {
-      a: BinaryPacket.Field.UNSIGNED_INT_8,
-      b: BinaryPacket.FieldArray(BinaryPacket.Field.INT_8)
+      a: Field.UNSIGNED_INT_8,
+      b: FieldArray(Field.INT_8)
     })
   })
 
   const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0)
-  const expectedMaxLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 4 + (1 + 1 + 256 * 1)
-
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))
@@ -117,7 +115,7 @@ function testReadComplexPacket() {
   view.setUint8(1 + 1 + 1 + 2 + 1, SUBPACKET_ID)
   view.setUint8(1 + 1 + 1 + 2 + 1 + 1, 255)
 
-  let data = ComplexPacket.read(view)
+  let data = ComplexPacket.readDataView(view)
   console.log('ComplexPacket:', data)
 
   assert(data.a === 1)
@@ -128,14 +126,14 @@ function testReadComplexPacket() {
   assert(Array.isArray(data.e.b) && data.e.b.length === 0)
 
   try {
-    ComplexPacket.read(view, { offset: expectedMinLength })
+    ComplexPacket.readDataView(view, { offset: expectedMinLength })
     assert(false, 'Could read from outside the offset')
   } catch {}
 
   // Try changing packet ID : read should fail
   view.setUint8(0, PACKET_ID + 1)
   try {
-    ComplexPacket.read(view)
+    ComplexPacket.readDataView(view)
     assert(false, 'Could read ComplexPacket from a non-ComplexPacket dataview')
   } catch {}
 
@@ -143,7 +141,7 @@ function testReadComplexPacket() {
   view.setUint8(0, PACKET_ID)
   view.setUint8(6, SUBPACKET_ID + 1)
   try {
-    ComplexPacket.read(view)
+    ComplexPacket.readDataView(view)
     assert(false, 'Could read ComplexPacket from a non-ComplexPacket (wrong sub packet) dataview')
   } catch {}
 
@@ -162,7 +160,7 @@ function testReadComplexPacket() {
   view.setInt8(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1, -128)
   view.setInt8(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1, 127)
 
-  data = ComplexPacket.read(view)
+  data = ComplexPacket.readDataView(view)
   console.log('ComplexPacket:', data)
 
   assert(data.a === 0)
