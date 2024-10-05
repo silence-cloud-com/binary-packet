@@ -9,7 +9,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup"
+    "build": "tsup",
+    "test": "node -r ts-node/register/transpile-only src/tests/reads.test.ts && node -r ts-node/register/transpile-only src/tests/writes.test.ts",
+    "benchmark": "node -r ts-node/register/transpile-only src/tests/benchmark.test.ts"
   },
   "keywords": [
     "silence-cloud",
