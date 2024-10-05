@@ -406,7 +406,7 @@ export class BinaryPacket<T extends Definition> {
 
 /**
  * BinaryPacket definition: \
- * Any packet can be defined through a JSON "schema" explaining its fields names and sizes.
+ * Any packet can be defined through a "schema" object explaining its fields names and types.
  *
  * @example
  * // Imagine we have a game board where each cell is a square and is one unit big.

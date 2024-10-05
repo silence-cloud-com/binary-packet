@@ -1,7 +1,7 @@
 {
   "name": "@silencecloud/binary-packet",
   "version": "1.0.0",
-  "description": "Lightweight and hyper-fast binary packets serialization and deserialization",
+  "description": "Lightweight and hyper-fast, zero-dependencies, TypeScript-first, schema-based binary packets serialization and deserialization library",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -12,12 +12,22 @@
     "build": "tsup"
   },
   "keywords": [
+    "silence-cloud",
     "binary",
+    "bytes",
     "struct",
+    "schema",
     "serialize",
     "deserialize",
+    "encode",
+    "decode",
     "packet",
-    "fast"
+    "message",
+    "fast",
+    "lightweight",
+    "buffer",
+    "arraybuffer",
+    "dataview"
   ],
   "author": "silence",
   "license": "ISC",
