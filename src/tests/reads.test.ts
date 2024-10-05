@@ -100,10 +100,11 @@ function testReadComplexPacket() {
     e: BinaryPacket.define(SUBPACKET_ID, {
       a: Field.UNSIGNED_INT_8,
       b: FieldArray(Field.INT_8)
-    })
+    }),
+    f: Field.FLOAT_64
   })
 
-  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0)
+  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))
@@ -160,6 +161,9 @@ function testReadComplexPacket() {
   view.setInt8(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1, -128)
   view.setInt8(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1, 127)
 
+  const random = Math.random()
+  view.setFloat64(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1 + 1, random)
+
   data = ComplexPacket.readDataView(view)
   console.log('ComplexPacket:', data)
 
@@ -177,6 +181,8 @@ function testReadComplexPacket() {
   assert(Array.isArray(data.e.b) && data.e.b.length === 2)
   assert(data.e.b[0] === -128)
   assert(data.e.b[1] === 127)
+
+  assert(data.f === random)
 
   console.log('ComplexPacket: PASS')
 }

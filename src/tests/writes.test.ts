@@ -30,13 +30,19 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
   const Packet = BinaryPacket.define(PACKET_ID, {
     a: Field.INT_8,
     b: Field.INT_16,
-    c: Field.UNSIGNED_INT_32
+    c: Field.UNSIGNED_INT_32,
+    d: Field.FLOAT_32,
+    e: Field.FLOAT_64
   })
+
+  const random = Math.random()
 
   const serialized = Packet[`write${mode}`]({
     a: -128,
     b: 32767,
-    c: 4294967294
+    c: 4294967294,
+    d: random,
+    e: random
   })
 
   let data: any
@@ -47,9 +53,15 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     data = Packet[`read${mode}`](serialized as any)
   }
 
+  const epsilon = 1e-7
+
   assert.equal(data.a, -128)
   assert.equal(data.b, 32767)
   assert.equal(data.c, 4294967294)
+
+  // truncated a Float64 to a Float32 so we must compare with epsilon
+  assert(data.d - epsilon < random && data.d + epsilon > random)
+  assert.equal(data.e, random)
 
   console.log(`[WRITE ${mode}] SimplePacket: PASS`)
 }
