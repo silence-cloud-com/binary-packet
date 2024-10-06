@@ -33,6 +33,8 @@ Currently, these kinds of `fields` are supported:
 | `BinaryPacket` | BinaryPacket "subpacket" | BinaryPacket | size(BinaryPacket) |
 | `FieldArray` | Array of one of the types above | Up to 256 elements | 1 + length \* size(Field) |
 
+As you can see from the table above, both arrays and nested objects ("subpackets") are supported.
+
 ## Usage Examples
 
 ```typescript
@@ -97,3 +99,27 @@ assert(board.cells[0].y === 0)
 assert(board.cells[1].x === 1)
 assert(board.cells[1].y === 1)
 ```
+
+## Benchmarks & Alternatives
+
+Benchmarks are not always meant to be taken seriously. \
+Most of the times the results of a benchmark do not actually show the full capabilities of each library. \
+So, take these "performance" comparisons with a grain of salt; or, even better, do your own benchmarks with the actual data you need to serialize/deserialize.
+
+This library has been benchmarked against the following alternatives:
+
+- [msgpackr](https://www.npmjs.com/package/msgpackr) - A very popular and very fast and battle-tested serialization library. It currently offers **many** more features than binary-packet, but it appears to be 2x-4x slower in writes and 3x-10x slower in reads.
+- [restructure](https://www.npmjs.com/package/restructure) - A very popular schema-based serialization library, has some extra features like LazyArrays, but it is **much slower** than both binary-packet and msgpackr. And, sadly, easily crashes with complex structures.
+
+The benchmarks are executed on three different kinds of packets:
+
+- EmptyPacket: basically an empty javascript object.
+- SimplePacket: objects with primitive-only fields.
+- ComplexPacket: objects with primitives, arrays and other nested objects/arrays.
+
+You can see and run the benchmarks yourself if you clone the repository and launch `npm run benchmark`.
+
+## Disclaimer
+
+This library is still very new, thus not "battle-tested" in production enough.\
+If you plan on serializing highly sensitive data or need to guarantee no crashes, use an alternative like [msgpackr](https://www.npmjs.com/package/msgpackr), or [contribute](https://github.com/silence-cloud-com/binary-packet) to this library yourself!

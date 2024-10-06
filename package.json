@@ -31,6 +31,10 @@
     "arraybuffer",
     "dataview"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/silence-cloud-com/binary-packet.git"
+  },
   "author": "silence",
   "license": "ISC",
   "devDependencies": {
