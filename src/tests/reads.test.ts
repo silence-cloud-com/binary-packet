@@ -30,7 +30,7 @@ function testReadEmptyPacket() {
     assert(false, 'Could read EmptyPacket from a non-EmptyPacket dataview')
   } catch {}
 
-  console.log('EmptyPacket: PASS')
+  console.log('[READ] EmptyPacket: PASS')
 }
 
 function testReadSimplePacket() {
@@ -54,8 +54,6 @@ function testReadSimplePacket() {
 
   let data = SimplePacket.readDataView(view)
 
-  console.log('SimplePacket:', data)
-
   assert(data.a === 0)
   assert(data.b === 0)
   assert(data.c === 0)
@@ -66,8 +64,6 @@ function testReadSimplePacket() {
   view.setUint16(3, 3456)
 
   data = SimplePacket.readDataView(view)
-
-  console.log('SimplePacket:', data)
 
   assert(data.a === 123)
   assert(data.b === 234)
@@ -85,7 +81,7 @@ function testReadSimplePacket() {
     assert(false, 'Could read SimplePacket from a non-SimplePacket dataview')
   } catch {}
 
-  console.log('SimplePacket: PASS')
+  console.log('[READ] SimplePacket: PASS')
 }
 
 function testReadComplexPacket() {
@@ -117,7 +113,6 @@ function testReadComplexPacket() {
   view.setUint8(1 + 1 + 1 + 2 + 1 + 1, 255)
 
   let data = ComplexPacket.readDataView(view)
-  console.log('ComplexPacket:', data)
 
   assert(data.a === 1)
   assert(data.b === 25)
@@ -165,7 +160,6 @@ function testReadComplexPacket() {
   view.setFloat64(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1 + 1, random)
 
   data = ComplexPacket.readDataView(view)
-  console.log('ComplexPacket:', data)
 
   assert(data.a === 0)
   assert(data.b === 0)
@@ -184,7 +178,7 @@ function testReadComplexPacket() {
 
   assert(data.f === random)
 
-  console.log('ComplexPacket: PASS')
+  console.log('[READ] ComplexPacket: PASS')
 }
 
 testReadEmptyPacket()
