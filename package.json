@@ -35,8 +35,8 @@
     "type": "git",
     "url": "git+https://github.com/silence-cloud-com/binary-packet.git"
   },
-  "author": "silence",
-  "license": "ISC",
+  "author": "silence-cloud.com",
+  "license": "Apache-2.0",
   "devDependencies": {
     "colors": "^1.4.0",
     "msgpackr": "^1.11.0",
