@@ -1,11 +1,22 @@
 // NOTE:
 // ALL THE BENCHMARK TESTS ARE MADE ON THE ASSUMPTION THAT BOTH THE WRITE AND READ TESTS PASSED.
 // Make sure that all the write and read tests pass before trying these ones.
-// In this benchmark the speeds are compared with msgpackr which is a popular library for binary serialization/deserialization
+// In this benchmark the speeds are compared with msgpackr and restructure which are popular libraries for binary serialization/deserialization
 
 import { BinaryPacket, Field, FieldArray } from '..'
 import msgpackr from 'msgpackr'
-import { gray, red, green, cyan } from 'colors/safe'
+import r from 'restructure'
+import { gray, red, green, cyan, yellow } from 'colors/safe'
+
+type Result = {
+  library: '@silencecloud/binary-packet' | 'msgpackr' | 'restructure'
+  benchmark: 'EmptyPacket' | 'SimplePacket' | 'ComplexPacket'
+  speed: string
+  speedSingle: string
+}
+
+const readResults: Result[] = []
+const writeResults: Result[] = []
 
 function testBenchmarkEmptyPacket() {
   console.log(cyan('EmptyPacket Benchmark:\n'))
@@ -17,6 +28,8 @@ function testBenchmarkEmptyPacket() {
   const packr = new msgpackr.Packr()
   const unpackr = new msgpackr.Unpackr()
 
+  const PacketFromRestructure = new r.Struct({})
+
   let start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
@@ -25,8 +38,18 @@ function testBenchmarkEmptyPacket() {
 
   let time = performance.now() - start
 
-  console.log(green(`binary-packet: Wrote ${TIMES} EmptyPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Wrote 1 EmptyPacket every ${(time / TIMES).toFixed(5)}ms`))
+  let speed = time.toFixed(2) + 'ms'
+  let speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Wrote ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Wrote 1 EmptyPacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -36,18 +59,52 @@ function testBenchmarkEmptyPacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'msgpackr',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Wrote ${TIMES} EmptyPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Wrote 1 EmptyPacket every ${(time / TIMES).toFixed(5)}ms\n`))
+  console.log(yellow(`msgpackr: Wrote ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Wrote 1 EmptyPacket every ${speedSingle}`))
+
+  start = performance.now()
+
+  for (let i = 0; i < TIMES; ++i) {
+    PacketFromRestructure.toBuffer({})
+  }
+
+  time = performance.now() - start
+
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'restructure',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Wrote ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(red(`restructure: Wrote 1 EmptyPacket every ${speedSingle}\n`))
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
   const packets: Buffer[] = Array(TIMES)
   const packeds: Buffer[] = Array(TIMES)
+  const structures: Buffer[] = Array(TIMES)
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({})
     packeds[i] = packr.pack({})
+    structures[i] = PacketFromRestructure.toBuffer({})
   }
 
   start = performance.now()
@@ -58,8 +115,18 @@ function testBenchmarkEmptyPacket() {
 
   time = performance.now() - start
 
-  console.log(green(`binary-packet: Read ${TIMES} EmptyPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Read 1 EmptyPacket every ${(time / TIMES).toFixed(5)}ms`))
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Read ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Read 1 EmptyPacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -69,9 +136,41 @@ function testBenchmarkEmptyPacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: 'msgpackr',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Read ${TIMES} EmptyPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Read 1 EmptyPacket every ${(time / TIMES).toFixed(5)}ms`))
+  console.log(yellow(`msgpackr: Read ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Read 1 EmptyPacket every ${speedSingle}`))
+
+  start = performance.now()
+
+  for (let i = 0; i < TIMES; ++i) {
+    const obj = PacketFromRestructure.fromBuffer(structures[i])
+  }
+
+  time = performance.now() - start
+
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: 'restructure',
+    benchmark: 'EmptyPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Read ${TIMES} EmptyPacket(s) in ${speed}`))
+  console.log(red(`restructure: Read 1 EmptyPacket every ${speedSingle}`))
 }
 
 function testBenchmarkSimplePacket() {
@@ -89,6 +188,13 @@ function testBenchmarkSimplePacket() {
   const packr = new msgpackr.Packr()
   const unpackr = new msgpackr.Unpackr()
 
+  const PacketFromRestructure = new r.Struct({
+    i: r.uint32,
+    x: r.uint32,
+    y: r.uint32,
+    z: r.uint8
+  })
+
   let start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
@@ -102,8 +208,18 @@ function testBenchmarkSimplePacket() {
 
   let time = performance.now() - start
 
-  console.log(green(`binary-packet: Wrote ${TIMES} SimplePacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Wrote 1 SimplePacket every ${(time / TIMES).toFixed(5)}ms`))
+  let speed = time.toFixed(2) + 'ms'
+  let speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Wrote ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Wrote 1 SimplePacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -113,14 +229,47 @@ function testBenchmarkSimplePacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'msgpackr',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Wrote ${TIMES} SimplePacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Wrote 1 SimplePacket every ${(time / TIMES).toFixed(5)}ms\n`))
+  console.log(yellow(`msgpackr: Wrote ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Wrote 1 SimplePacket every ${speedSingle}`))
+
+  start = performance.now()
+
+  for (let i = 0; i < TIMES; ++i) {
+    PacketFromRestructure.toBuffer({ i, x: i + 1, y: i + 2, z: 255 })
+  }
+
+  time = performance.now() - start
+
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'restructure',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Wrote ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(red(`restructure: Wrote 1 SimplePacket every ${speedSingle}\n`))
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
   const packets: Buffer[] = Array(TIMES)
   const packeds: Buffer[] = Array(TIMES)
+  const structures: Buffer[] = Array(TIMES)
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({
@@ -136,6 +285,13 @@ function testBenchmarkSimplePacket() {
       y: i + 2,
       z: 255
     })
+
+    structures[i] = PacketFromRestructure.toBuffer({
+      i,
+      x: i + 1,
+      y: i + 2,
+      z: 255
+    })
   }
 
   start = performance.now()
@@ -146,8 +302,18 @@ function testBenchmarkSimplePacket() {
 
   time = performance.now() - start
 
-  console.log(green(`binary-packet: Read ${TIMES} SimplePacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Read 1 SimplePacket every ${(time / TIMES).toFixed(5)}ms`))
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Read ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Read 1 SimplePacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -157,9 +323,41 @@ function testBenchmarkSimplePacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: 'msgpackr',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Read ${TIMES} SimplePacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Read 1 SimplePacket every ${(time / TIMES).toFixed(5)}ms`))
+  console.log(yellow(`msgpackr: Read ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Read 1 SimplePacket every ${speedSingle}`))
+
+  start = performance.now()
+
+  for (let i = 0; i < TIMES; ++i) {
+    const obj = PacketFromRestructure.fromBuffer(structures[i])
+  }
+
+  time = performance.now() - start
+
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: 'restructure',
+    benchmark: 'SimplePacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Read ${TIMES} SimplePacket(s) in ${speed}`))
+  console.log(red(`restructure: Read 1 SimplePacket every ${speedSingle}`))
 }
 
 function testBenchmarkComplexPacket() {
@@ -181,6 +379,15 @@ function testBenchmarkComplexPacket() {
   const packr = new msgpackr.Packr()
   const unpackr = new msgpackr.Unpackr()
 
+  const PacketFromRestructure = new r.Struct({
+    i: r.uint32,
+    a: new r.Array(r.uint32),
+    sub: new r.Struct({
+      subI: r.uint32,
+      subArray: new r.Array(r.uint32)
+    })
+  })
+
   let start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
@@ -193,8 +400,18 @@ function testBenchmarkComplexPacket() {
 
   let time = performance.now() - start
 
-  console.log(green(`binary-packet: Wrote ${TIMES} ComplexPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Wrote 1 ComplexPacket every ${(time / TIMES).toFixed(5)}ms`))
+  let speed = time.toFixed(2) + 'ms'
+  let speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'ComplexPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Wrote ${TIMES} ComplexPacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Wrote 1 ComplexPacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -204,14 +421,51 @@ function testBenchmarkComplexPacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'msgpackr',
+    benchmark: 'ComplexPacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Wrote ${TIMES} ComplexPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Wrote 1 ComplexPacket every ${(time / TIMES).toFixed(5)}ms\n`))
+  console.log(yellow(`msgpackr: Wrote ${TIMES} ComplexPacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Wrote 1 ComplexPacket every ${speedSingle}`))
+
+  start = performance.now()
+
+  for (let i = 0; i < TIMES; ++i) {
+    PacketFromRestructure.toBuffer({
+      i,
+      a: [i + 1, i + 2],
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+    })
+  }
+
+  time = performance.now() - start
+
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  writeResults.push({
+    library: 'restructure',
+    benchmark: 'ComplexPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Wrote ${TIMES} ComplexPacket(s) in ${speed}`))
+  console.log(red(`restructure: Wrote 1 ComplexPacket every ${speedSingle}\n`))
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
   const packets: Buffer[] = Array(TIMES)
   const packeds: Buffer[] = Array(TIMES)
+  const structures: Buffer[] = Array(TIMES)
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({
@@ -221,6 +475,12 @@ function testBenchmarkComplexPacket() {
     })
 
     packeds[i] = packr.pack({
+      i,
+      a: [i + 1, i + 2],
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+    })
+
+    structures[i] = PacketFromRestructure.toBuffer({
       i,
       a: [i + 1, i + 2],
       sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
@@ -235,8 +495,18 @@ function testBenchmarkComplexPacket() {
 
   time = performance.now() - start
 
-  console.log(green(`binary-packet: Read ${TIMES} ComplexPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(green(`binary-packet: Read 1 ComplexPacket every ${(time / TIMES).toFixed(5)}ms`))
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: '@silencecloud/binary-packet',
+    benchmark: 'ComplexPacket',
+    speed,
+    speedSingle
+  })
+
+  console.log(green(`binary-packet: Read ${TIMES} ComplexPacket(s) in ${speed}`))
+  console.log(green(`binary-packet: Read 1 ComplexPacket every ${speedSingle}`))
 
   start = performance.now()
 
@@ -246,9 +516,30 @@ function testBenchmarkComplexPacket() {
 
   time = performance.now() - start
 
+  speed = time.toFixed(2) + 'ms'
+  speedSingle = (time / TIMES).toFixed(5) + 'ms'
+
+  readResults.push({
+    library: 'msgpackr',
+    benchmark: 'ComplexPacket',
+    speed,
+    speedSingle
+  })
+
   console.log(gray('--------------------------------------------------------'))
-  console.log(red(`msgpackr: Read ${TIMES} ComplexPacket(s) in ${time.toFixed(2)}ms`))
-  console.log(red(`msgpackr: Read 1 ComplexPacket every ${(time / TIMES).toFixed(5)}ms`))
+  console.log(yellow(`msgpackr: Read ${TIMES} ComplexPacket(s) in ${speed}`))
+  console.log(yellow(`msgpackr: Read 1 ComplexPacket every ${speedSingle}`))
+
+  // Restructure reads fail and throw exceptions with the ComplexPacket structure: do not bother.
+  console.log(gray('--------------------------------------------------------'))
+  console.log(red(`restructure: Read of ComplexPacket(s) crashes`))
+
+  readResults.push({
+    library: 'restructure',
+    benchmark: 'ComplexPacket',
+    speed: 'N/A (Crashes)',
+    speedSingle: 'N/A (Crashes)'
+  })
 }
 
 testBenchmarkEmptyPacket()
@@ -256,3 +547,6 @@ console.log('\n\n')
 testBenchmarkSimplePacket()
 console.log('\n\n')
 testBenchmarkComplexPacket()
+
+// console.table(writeResults.sort((a, b) => a.library.localeCompare(b.library)))
+// console.table(readResults.sort((a, b) => a.library.localeCompare(b.library)))
