@@ -34,6 +34,7 @@
   "author": "silence",
   "license": "ISC",
   "devDependencies": {
+    "colors": "^1.4.0",
     "msgpackr": "^1.11.0",
     "prettier": "^3.3.3",
     "prettier-plugin-organize-imports": "^4.1.0",
