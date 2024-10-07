@@ -1,4 +1,4 @@
-# @silencecloud/binary-packet
+# binary-packet
 
 Lightweight and hyper-fast, zero-dependencies, TypeScript-first, schema-based binary packets serialization and deserialization library. \
 Originally made to be used for an ultrafast WebSockets communication with user-defined type-safe messages between client and server, with the smallest bytes usage possible.
@@ -9,10 +9,10 @@ To achieve the maximum performance is it always advised to use node Buffer(s) wh
 ## Installation
 
 Node: \
-`npm install @silencecloud/binary-packet`
+`npm install binary-packet`
 
 Bun: \
-`bun add @silencecloud/binary-packet`
+`bun add binary-packet`
 
 ## Features & Specification
 
@@ -38,7 +38,7 @@ As you can see from the table above, both arrays and nested objects ("subpackets
 ## Usage Examples
 
 ```typescript
-import { BinaryPacket, Field, FieldArray } from '@silencecloud/binary-packet'
+import { BinaryPacket, Field, FieldArray } from 'binary-packet'
 
 // Imagine we have a game board where each cell is a square and is one unit big.
 // A cell can be then defined by its X and Y coordinates.

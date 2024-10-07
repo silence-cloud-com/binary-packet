@@ -9,7 +9,7 @@ import r from 'restructure'
 import { gray, red, green, cyan, yellow } from 'colors/safe'
 
 type Result = {
-  library: '@silencecloud/binary-packet' | 'msgpackr' | 'restructure'
+  library: 'binary-packet' | 'msgpackr' | 'restructure'
   benchmark: 'EmptyPacket' | 'SimplePacket' | 'ComplexPacket'
   speed: string
   speedSingle: string
@@ -42,7 +42,7 @@ function testBenchmarkEmptyPacket() {
   let speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   writeResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'EmptyPacket',
     speed,
     speedSingle
@@ -119,7 +119,7 @@ function testBenchmarkEmptyPacket() {
   speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   readResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'EmptyPacket',
     speed,
     speedSingle
@@ -212,7 +212,7 @@ function testBenchmarkSimplePacket() {
   let speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   writeResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'SimplePacket',
     speed,
     speedSingle
@@ -306,7 +306,7 @@ function testBenchmarkSimplePacket() {
   speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   readResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'SimplePacket',
     speed,
     speedSingle
@@ -404,7 +404,7 @@ function testBenchmarkComplexPacket() {
   let speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   writeResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'ComplexPacket',
     speed,
     speedSingle
@@ -499,7 +499,7 @@ function testBenchmarkComplexPacket() {
   speedSingle = (time / TIMES).toFixed(5) + 'ms'
 
   readResults.push({
-    library: '@silencecloud/binary-packet',
+    library: 'binary-packet',
     benchmark: 'ComplexPacket',
     speed,
     speedSingle

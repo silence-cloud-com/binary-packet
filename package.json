@@ -1,5 +1,5 @@
 {
-  "name": "@silencecloud/binary-packet",
+  "name": "binary-packet",
   "version": "1.0.0",
   "description": "Lightweight and hyper-fast, zero-dependencies, TypeScript-first, schema-based binary packets serialization and deserialization library",
   "main": "./dist/index.js",
