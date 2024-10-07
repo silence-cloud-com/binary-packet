@@ -121,5 +121,10 @@ You can see and run the benchmarks yourself if you clone the repository and laun
 
 ## Disclaimer
 
-This library is still very new, thus not "battle-tested" in production enough.\
-If you plan on serializing highly sensitive data or need to guarantee no crashes, use an alternative like [msgpackr](https://www.npmjs.com/package/msgpackr), or [contribute](https://github.com/silence-cloud-com/binary-packet) to this library yourself!
+This library is still very new, thus not "battle-tested" in production enough, or may still have missing important features. \
+If you plan on serializing highly sensitive data or need to guarantee no crashes, use an alternative like [msgpackr](https://www.npmjs.com/package/msgpackr) until this library becomes 100% production-ready.
+
+## Contribute
+
+Would like to have more complex, but still hyper-fast and memory efficient, features? \
+[Contribute on GitHub](https://github.com/silence-cloud-com/binary-packet) yourself or, alternatively, [buy me a coffee](https://buymeacoffee.com/silence.cloud)!
