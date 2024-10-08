@@ -3,7 +3,7 @@
 // Make sure that all the write and read tests pass before trying these ones.
 // In this benchmark the speeds are compared with msgpackr and restructure which are popular libraries for binary serialization/deserialization
 
-import { BinaryPacket, Field, FieldArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldFixedArray } from '..'
 import msgpackr from 'msgpackr'
 import r from 'restructure'
 import { gray, red, green, cyan, yellow } from 'colors/safe'
@@ -182,7 +182,8 @@ function testBenchmarkSimplePacket() {
     i: Field.UNSIGNED_INT_32,
     x: Field.UNSIGNED_INT_32,
     y: Field.UNSIGNED_INT_32,
-    z: Field.UNSIGNED_INT_8
+    z: Field.UNSIGNED_INT_8,
+    twoElements: FieldFixedArray(Field.INT_32, 2)
   })
 
   const packr = new msgpackr.Packr()
@@ -192,7 +193,8 @@ function testBenchmarkSimplePacket() {
     i: r.uint32,
     x: r.uint32,
     y: r.uint32,
-    z: r.uint8
+    z: r.uint8,
+    twoElements: new r.Array(r.int32, 2)
   })
 
   let start = performance.now()
@@ -202,7 +204,8 @@ function testBenchmarkSimplePacket() {
       i,
       x: i + 1,
       y: i + 2,
-      z: 255
+      z: 255,
+      twoElements: [-i, i]
     })
   }
 
@@ -224,7 +227,7 @@ function testBenchmarkSimplePacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    packr.pack({ i, x: i + 1, y: i + 2, z: 255 })
+    packr.pack({ i, x: i + 1, y: i + 2, z: 255, twoElements: [-i, i] })
   }
 
   time = performance.now() - start
@@ -246,7 +249,7 @@ function testBenchmarkSimplePacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    PacketFromRestructure.toBuffer({ i, x: i + 1, y: i + 2, z: 255 })
+    PacketFromRestructure.toBuffer({ i, x: i + 1, y: i + 2, z: 255, twoElements: [-i, i] })
   }
 
   time = performance.now() - start
@@ -276,21 +279,24 @@ function testBenchmarkSimplePacket() {
       i,
       x: i + 1,
       y: i + 2,
-      z: 255
+      z: 255,
+      twoElements: [-i, i]
     })
 
     packeds[i] = packr.pack({
       i,
       x: i + 1,
       y: i + 2,
-      z: 255
+      z: 255,
+      twoElements: [-i, i]
     })
 
     structures[i] = PacketFromRestructure.toBuffer({
       i,
       x: i + 1,
       y: i + 2,
-      z: 255
+      z: 255,
+      twoElements: [-i, i]
     })
   }
 
@@ -373,7 +379,8 @@ function testBenchmarkComplexPacket() {
   const Packet = BinaryPacket.define(69, {
     i: Field.UNSIGNED_INT_32,
     a: FieldArray(Field.UNSIGNED_INT_32),
-    sub: SubPacket
+    sub: SubPacket,
+    twoElements: FieldFixedArray(Field.INT_32, 2)
   })
 
   const packr = new msgpackr.Packr()
@@ -385,7 +392,8 @@ function testBenchmarkComplexPacket() {
     sub: new r.Struct({
       subI: r.uint32,
       subArray: new r.Array(r.uint32)
-    })
+    }),
+    twoElements: new r.Array(r.int32, 2)
   })
 
   let start = performance.now()
@@ -394,7 +402,8 @@ function testBenchmarkComplexPacket() {
     Packet.writeNodeBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
     })
   }
 
@@ -416,7 +425,12 @@ function testBenchmarkComplexPacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    packr.pack({ i, a: [i + 1, i + 2], sub: { subArray: [i, i * 2, i * 3], subI: i * 2 } })
+    packr.pack({
+      i,
+      a: [i + 1, i + 2],
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
+    })
   }
 
   time = performance.now() - start
@@ -441,7 +455,8 @@ function testBenchmarkComplexPacket() {
     PacketFromRestructure.toBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
     })
   }
 
@@ -471,19 +486,22 @@ function testBenchmarkComplexPacket() {
     packets[i] = Packet.writeNodeBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
     })
 
     packeds[i] = packr.pack({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
     })
 
     structures[i] = PacketFromRestructure.toBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 }
+      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      twoElements: [-i, i]
     })
   }
 

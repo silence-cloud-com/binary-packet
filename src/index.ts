@@ -49,11 +49,33 @@ export const enum Field {
 }
 
 /**
- * Defines an array of a certain type. \
- * As of now, only arrays with at most 256 elements are supported.
+ * Defines a dynamically-sized array with elements of a certain type. \
+ * Dynamically-sized arrays are useful when a packet's field is an array of a non pre-defined length. \
+ * Although, this makes dynamically-sized arrays more memory expensive as the internal buffer needs to be grown accordingly.
+ *
+ * NOTE: If an array will ALWAYS have the same length, prefer using the `FieldFixedArray` type, for both better performance and memory efficiency. \
+ * NOTE: As of now, dynamic arrays can have at most 256 elements.
  */
-export function FieldArray<T extends Field | BinaryPacket<Definition>>(item: T) {
+export function FieldArray<T extends Field | BinaryPacket<Definition>>(item: T): [itemType: T] {
   return [item]
+}
+
+/**
+ * Defines a statically-sized array with elements of a certain type. \
+ * Fixed arrays are useful when a packet's field is an array of a pre-defined length. \
+ * Fixed arrays much more memory efficient and performant than non-fixed ones.
+ *
+ * NOTE: If an array will not always have the same length, use the `FieldArray` type.
+ */
+export function FieldFixedArray<T extends Field | BinaryPacket<Definition>, Length extends number>(
+  item: T,
+  length: Length
+): [itemType: T, length: Length] {
+  if (length < 0 || !Number.isFinite(length)) {
+    throw new RangeError('Length of a FixedArray must be a positive integer.')
+  }
+
+  return [item, length]
 }
 
 export class BinaryPacket<T extends Definition> {
@@ -237,7 +259,10 @@ export class BinaryPacket<T extends Definition> {
 
     for (const [name, def] of this.entries) {
       if (Array.isArray(def)) {
-        const length = readFunctions[Field.UNSIGNED_INT_8](dataIn as any, offsetPointer.offset++)
+        const length =
+          // def[1] is the length of a statically-sized array, if undefined: must read the length from the buffer as it means it's a dynamically-sized array
+          def[1] ?? readFunctions[Field.UNSIGNED_INT_8](dataIn as any, offsetPointer.offset++)
+
         const array = Array(length)
 
         const itemType = def[0]
@@ -306,6 +331,9 @@ export class BinaryPacket<T extends Definition> {
     }
   }
 
+  /**
+   * Fast write does not support writing dynamically-sized arrays.
+   */
   private fastWrite<Buf extends DataView | Buffer>(
     buffer: Buf,
     dataOut: ToJson<T>,
@@ -313,15 +341,28 @@ export class BinaryPacket<T extends Definition> {
     writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF
   ) {
     for (const [name, def] of this.entries) {
-      if (typeof def === 'object') {
+      if (Array.isArray(def)) {
+        // Statically-sized array
+        const itemType = def[0]
+        const length = def[1]!
+        const data = dataOut[name] as any[]
+
+        if (typeof itemType === 'object') {
+          for (let i = 0; i < length; ++i) {
+            itemType.fastWrite(buffer, data[i] as ToJson<Definition>, offsetPointer, writeFunctions)
+          }
+        } else {
+          const itemSize = BYTE_SIZE[itemType]
+
+          for (let i = 0; i < length; ++i) {
+            writeFunctions[itemType](buffer as any, data[i] as number, offsetPointer.offset)
+            offsetPointer.offset += itemSize
+          }
+        }
+      } else if (typeof def === 'object') {
         // Single "subpacket"
         // In fastWrite there cannot be arrays, but the cast is needed because TypeScript can't possibly know that.
-        ;(def as BinaryPacket<Definition>).fastWrite(
-          buffer,
-          dataOut[name] as ToJson<Definition>,
-          offsetPointer,
-          writeFunctions
-        )
+        def.fastWrite(buffer, dataOut[name] as ToJson<Definition>, offsetPointer, writeFunctions)
       } else {
         // Single primitive (number)
         writeFunctions[def](buffer as any, dataOut[name] as number, offsetPointer.offset)
@@ -332,7 +373,7 @@ export class BinaryPacket<T extends Definition> {
 
   /**
    * The slow writing path tries writing data into the buffer as fast as the fast writing path does. \
-   * But, if a non-empty array is encountered, the buffer needs to grow, slightly reducing performance.
+   * But, if a non-empty dynamically-sized array is encountered, the buffer needs to grow, slightly reducing performance.
    */
   private slowWrite<Buf extends DataView | Buffer>(
     buffer: Buf,
@@ -348,23 +389,32 @@ export class BinaryPacket<T extends Definition> {
 
       if (Array.isArray(def)) {
         // Could be both an array of just numbers or "subpackets"
-        const length = (data as any[]).length
 
-        writeFunctions[Field.UNSIGNED_INT_8](buffer as any, length, offsetPointer.offset)
-        offsetPointer.offset += 1
+        const length = (data as any[]).length
+        const isDynamicArray = def[1] === undefined
+
+        // Check if it is a dynamically-sized array, if it is, the length of the array must be serialized in the buffer before its elements
+        // Explicitly check for undefined and not falsy values because it could be a statically-sized array of 0 elements.
+        if (isDynamicArray) {
+          writeFunctions[Field.UNSIGNED_INT_8](buffer as any, length, offsetPointer.offset)
+          offsetPointer.offset += 1
+        }
 
         if (length > 0) {
           const itemType = def[0]
 
           if (typeof itemType === 'object') {
             // Array of "subpackets"
-            const neededBytesForElements = length * itemType.minimumByteLength
 
-            byteLength += neededBytesForElements
-            maxByteLength += neededBytesForElements
+            if (isDynamicArray) {
+              const neededBytesForElements = length * itemType.minimumByteLength
 
-            if (buffer.byteLength < maxByteLength) {
-              buffer = growBufferFunction(buffer, maxByteLength)
+              byteLength += neededBytesForElements
+              maxByteLength += neededBytesForElements
+
+              if (buffer.byteLength < maxByteLength) {
+                buffer = growBufferFunction(buffer, maxByteLength)
+              }
             }
 
             for (const object of data as unknown as ToJson<Definition>[]) {
@@ -392,13 +442,16 @@ export class BinaryPacket<T extends Definition> {
           } else {
             // Array of primitives (numbers)
             const itemSize = BYTE_SIZE[itemType]
-            const neededBytesForElements = length * itemSize
 
-            byteLength += neededBytesForElements
-            maxByteLength += neededBytesForElements
+            if (isDynamicArray) {
+              const neededBytesForElements = length * itemSize
 
-            if (buffer.byteLength < maxByteLength) {
-              buffer = growBufferFunction(buffer, maxByteLength)
+              byteLength += neededBytesForElements
+              maxByteLength += neededBytesForElements
+
+              if (buffer.byteLength < maxByteLength) {
+                buffer = growBufferFunction(buffer, maxByteLength)
+              }
             }
 
             // It seems like looping over each element is actually much faster than using TypedArrays bulk copy.
@@ -458,7 +511,7 @@ export class BinaryPacket<T extends Definition> {
  * // You can also specify arrays of both "primitive" fields and other BinaryPackets.
  * const Board = {
  *  numPlayers: Field.UNSIGNED_INT_8,
- *  cells: FieldArray(CellPacket) // equivalent to { cells: [CellPacket] }
+ *  cells: FieldArray(CellPacket)
  * }
  *
  * // When done with the board definition we can create its BinaryPacket writer/reader.
@@ -481,20 +534,26 @@ export class BinaryPacket<T extends Definition> {
  * // ...
  */
 export type Definition = {
-  [fieldName: string]: Field | Field[] | BinaryPacket<Definition> | BinaryPacket<Definition>[]
+  [fieldName: string]: MaybeArray<Field> | MaybeArray<BinaryPacket<Definition>>
 }
+
+type MaybeArray<T> = T | [itemType: T] | [itemType: T, length: number]
 
 /**
  * Meta-type that converts a `Definition` schema to the type of the actual JavaScript object that will be written into a packet or read from. \
  */
 type ToJson<T extends Definition> = {
-  [K in keyof T]: T[K] extends ReadonlyArray<infer Item>
+  [K in keyof T]: T[K] extends [infer Item]
     ? Item extends BinaryPacket<infer BPDef>
       ? ToJson<BPDef>[]
       : number[]
-    : T[K] extends BinaryPacket<infer BPDef>
-      ? ToJson<BPDef>
-      : number
+    : T[K] extends [infer Item, infer Length]
+      ? Item extends BinaryPacket<infer BPDef>
+        ? ToJson<BPDef>[] & { length: Length }
+        : number[] & { length: Length }
+      : T[K] extends BinaryPacket<infer BPDef>
+        ? ToJson<BPDef>
+        : number
 }
 
 /**
@@ -523,9 +582,18 @@ function inspectEntries(entries: Entries) {
 
   for (const [, type] of entries) {
     if (Array.isArray(type)) {
-      // Adding 1 byte to serialize the array length
-      minimumByteLength += 1
-      canFastWrite = false
+      if (type.length === 2) {
+        // Statically-sized array
+        const itemSize =
+          typeof type[0] === 'object' ? type[0].minimumByteLength : BYTE_SIZE[type[0]]
+
+        minimumByteLength += type[1] * itemSize
+      } else {
+        // Dynamically-sized array
+        // Adding 1 byte to serialize the array length
+        minimumByteLength += 1
+        canFastWrite = false
+      }
     } else if (type instanceof BinaryPacket) {
       minimumByteLength += type.minimumByteLength
       canFastWrite &&= type.canFastWrite

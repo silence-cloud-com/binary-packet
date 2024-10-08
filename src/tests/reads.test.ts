@@ -1,5 +1,5 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldFixedArray } from '..'
 
 function testReadEmptyPacket() {
   const PACKET_ID = 1
@@ -41,10 +41,11 @@ function testReadSimplePacket() {
   const SimplePacket = BinaryPacket.define(PACKET_ID, {
     a: Field.UNSIGNED_INT_8,
     b: Field.UNSIGNED_INT_8,
-    c: Field.INT_16
+    c: Field.INT_16,
+    d: FieldFixedArray(Field.INT_16, 3)
   })
 
-  const expectedLength = 1 + 1 + 1 + 2
+  const expectedLength = 1 + 1 + 1 + 2 + 2 * 3
 
   assert(
     SimplePacket.minimumByteLength === expectedLength,
@@ -61,17 +62,27 @@ function testReadSimplePacket() {
   assert(data.a === 0)
   assert(data.b === 0)
   assert(data.c === 0)
+  assert.equal(data.d.length, 3)
+  assert.equal(data.d[0], 0)
+  assert.equal(data.d[1], 0)
+  assert.equal(data.d[2], 0)
 
   view.setUint8(0, PACKET_ID)
   view.setUint8(1, 123)
   view.setUint8(2, 234)
   view.setUint16(3, 3456)
+  view.setInt16(5, 1)
+  view.setInt16(7, 18_000)
+  view.setInt16(9, -32_768)
 
   data = SimplePacket.readDataView(view)
 
   assert(data.a === 123)
   assert(data.b === 234)
   assert(data.c === 3456)
+  assert.equal(data.d[0], 1)
+  assert.equal(data.d[1], 18_000)
+  assert.equal(data.d[2], -32_768)
 
   try {
     SimplePacket.readDataView(view, { offset: expectedLength })
@@ -101,10 +112,11 @@ function testReadComplexPacket() {
       a: Field.UNSIGNED_INT_8,
       b: FieldArray(Field.INT_8)
     }),
-    f: Field.FLOAT_64
+    f: Field.FLOAT_64,
+    g: FieldFixedArray(Field.INT_8, 4)
   })
 
-  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8
+  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8 + 1 * 4
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))
@@ -115,6 +127,12 @@ function testReadComplexPacket() {
   view.setUint16(1 + 1 + 1, -20_000)
   view.setUint8(1 + 1 + 1 + 2 + 1, SUBPACKET_ID)
   view.setUint8(1 + 1 + 1 + 2 + 1 + 1, 255)
+  view.setUint8(1 + 1 + 1 + 2 + 1 + 1 + 1, 0)
+  view.setFloat64(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1, -1.25)
+  view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8, 100)
+  view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1, -101)
+  view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1 + 1, 102)
+  view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1 + 1 + 1, -103)
 
   assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
   assert.equal(BinaryPacket.readPacketIdDataView(view, 6), SUBPACKET_ID)
@@ -127,6 +145,12 @@ function testReadComplexPacket() {
   assert(Array.isArray(data.d) && data.d.length === 0)
   assert(data.e.a === 255)
   assert(Array.isArray(data.e.b) && data.e.b.length === 0)
+  assert.equal(data.f, -1.25)
+  assert.equal(data.g.length, 4)
+  assert.equal(data.g[0], 100)
+  assert.equal(data.g[1], -101)
+  assert.equal(data.g[2], 102)
+  assert.equal(data.g[3], -103)
 
   try {
     ComplexPacket.readDataView(view, { offset: expectedMinLength })

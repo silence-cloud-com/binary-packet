@@ -31,9 +31,11 @@ Currently, these kinds of `fields` are supported:
 | `Field.FLOAT_32` | 32 bits IEEE754 floating-point | | 4 |
 | `Field.FLOAT_64` | 64 bits IEEE754 floating-point | | 8 |
 | `BinaryPacket` | BinaryPacket "subpacket" | BinaryPacket | size(BinaryPacket) |
-| `FieldArray` | Array of one of the types above | Up to 256 elements | 1 + length \* size(Field) |
+| `FieldArray` | Dynamically-sized array of one of the types above | Up to 256 elements | 1 + length \* size(Element) |
+| `FieldFixedArray` | Statically-sized array of one of the types above | Any pre-defined numbers of elements | length \* size(Element) |
 
-As you can see from the table above, both arrays and nested objects ("subpackets") are supported.
+As you can see from the table above, both arrays and nested objects ("subpackets") are supported. \
+Note that `FieldFixedArray`s are much more memory efficient and performant than `FieldArray`s, but require a pre-defined length.
 
 ## Usage Examples
 
@@ -57,7 +59,7 @@ const CellPacket = BinaryPacket.define(0, Cell)
 const Board = {
   numPlayers: Field.UNSIGNED_INT_8,
   otherStuff: Field.INT_32,
-  cells: FieldArray(CellPacket) // equivalent to { cells: [CellPacket] }
+  cells: FieldArray(CellPacket)
 }
 
 // When done with the board definition we can create its BinaryPacket writer/reader.
@@ -108,14 +110,14 @@ So, take these "performance" comparisons with a grain of salt; or, even better, 
 
 This library has been benchmarked against the following alternatives:
 
-- [msgpackr](https://www.npmjs.com/package/msgpackr) - A very popular and very fast and battle-tested serialization library. It currently offers **many** more features than binary-packet, but it appears to be 2x-4x slower in writes and 3x-10x slower in reads.
-- [restructure](https://www.npmjs.com/package/restructure) - A very popular schema-based serialization library, has some extra features like LazyArrays, but it is **much slower** than both binary-packet and msgpackr. And, sadly, easily crashes with complex structures.
+- [msgpackr](https://www.npmjs.com/package/msgpackr) - A very popular, fast and battle-tested library. Currently offers **many** more features than binary-packet, but it appears to be 2x-4x slower in writes and 3x-10x slower in reads (depends on the packet structure) - is also less type-safe.
+- [restructure](https://www.npmjs.com/package/restructure) - An older, popular schema-based library, has some extra features like LazyArrays, but it is **much slower** than both binary-packet and msgpackr. And, sadly, easily crashes with complex structures.
 
 The benchmarks are executed on three different kinds of packets:
 
 - EmptyPacket: basically an empty javascript object.
-- SimplePacket: objects with primitive-only fields.
-- ComplexPacket: objects with primitives, arrays and other nested objects/arrays.
+- SimplePacket: objects with just primitive fields and statically-sized arrays.
+- ComplexPacket: objects with primitives, statically-sized arrays, dynamically-sized arrays and other nested objects/arrays.
 
 You can see and run the benchmarks yourself if you clone the repository and launch `npm run benchmark`.
 
