@@ -76,19 +76,34 @@ export class BinaryPacket<T extends Definition> {
     return new BinaryPacket(packetId, definition)
   }
 
-  private readonly entries: Entries
-  readonly canFastWrite: boolean
-  readonly minimumByteLength: number
+  /**
+   * Reads just the packetId from the given Buffer. \
+   * This method practically just reads the uint8 at offset `byteOffset` (default: 0). \
+   * Useful if the receiving side receives multiple types of packets.
+   */
+  static readPacketIdNodeBuffer(buffer: Buffer, byteOffset = 0) {
+    return buffer.readUint8(byteOffset)
+  }
 
-  private constructor(
-    private readonly packetId: number,
-    definition?: T
-  ) {
-    this.entries = definition ? sortEntries(definition) : []
-    const inspection = inspectEntries(this.entries)
+  /**
+   * Reads just the packetId from the given DataView. \
+   * This method practically just reads the uint8 at offset `byteOffset` (default: 0). \
+   * Useful if the receiving side receives multiple types of packets.
+   */
+  static readPacketIdDataView(dataview: DataView, byteOffset = 0) {
+    return dataview.getUint8(byteOffset)
+  }
 
-    this.minimumByteLength = inspection.minimumByteLength
-    this.canFastWrite = inspection.canFastWrite
+  /**
+   * Reads just the packetId from the given ArrayBuffer. \
+   * This method practically just reads the uint8 at offset `byteOffset`. \
+   * Useful if the receiving side receives multiple types of packets.
+   *
+   * NOTE: Due to security issues, the `byteOffset` argument cannot be defaulted and must be provided by the user. \
+   * NOTE: For more information read the `readArrayBuffer` method documentation.
+   */
+  static readPacketIdArrayBuffer(arraybuffer: ArrayBuffer, byteOffset: number) {
+    return new Uint8Array(arraybuffer, byteOffset, 1)[0]
   }
 
   /**
@@ -180,6 +195,21 @@ export class BinaryPacket<T extends Definition> {
   writeArrayBuffer(dataOut: ToJson<T>) {
     const buf = hasNodeBuffers ? this.writeNodeBuffer(dataOut) : this.writeDataView(dataOut)
     return { buffer: buf.buffer, byteLength: buf.byteLength, byteOffset: buf.byteOffset }
+  }
+
+  private readonly entries: Entries
+  readonly canFastWrite: boolean
+  readonly minimumByteLength: number
+
+  private constructor(
+    private readonly packetId: number,
+    definition?: T
+  ) {
+    this.entries = definition ? sortEntries(definition) : []
+    const inspection = inspectEntries(this.entries)
+
+    this.minimumByteLength = inspection.minimumByteLength
+    this.canFastWrite = inspection.canFastWrite
   }
 
   private read(

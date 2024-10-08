@@ -16,6 +16,8 @@ function testReadEmptyPacket() {
   const view = new DataView(new ArrayBuffer(expectedLength))
   view.setUint8(0, PACKET_ID)
 
+  assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
+
   EmptyPacket.readDataView(view)
 
   try {
@@ -50,7 +52,9 @@ function testReadSimplePacket() {
   )
 
   const view = new DataView(new ArrayBuffer(expectedLength))
+
   view.setUint8(0, PACKET_ID)
+  assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
 
   let data = SimplePacket.readDataView(view)
 
@@ -112,6 +116,9 @@ function testReadComplexPacket() {
   view.setUint8(1 + 1 + 1 + 2 + 1, SUBPACKET_ID)
   view.setUint8(1 + 1 + 1 + 2 + 1 + 1, 255)
 
+  assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
+  assert.equal(BinaryPacket.readPacketIdDataView(view, 6), SUBPACKET_ID)
+
   let data = ComplexPacket.readDataView(view)
 
   assert(data.a === 1)
@@ -158,6 +165,8 @@ function testReadComplexPacket() {
 
   const random = Math.random()
   view.setFloat64(6 + 4 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 1 + 1, random)
+
+  assert.equal(BinaryPacket.readPacketIdDataView(view, 6 + 4 + 4 + 4 + 4 + 4), SUBPACKET_ID)
 
   data = ComplexPacket.readDataView(view)
 
