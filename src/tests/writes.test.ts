@@ -1,5 +1,5 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldFixedArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray } from '..'
 
 // NOTE:
 // ALL THE WRITE TESTS ARE MADE ON THE ASSUMPTION THAT THE READ TESTS PASSED.
@@ -94,7 +94,8 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
         c: FieldFixedArray(Field.INT_8, 3)
       })
     ),
-    h: Field.UNSIGNED_INT_32
+    h: Field.UNSIGNED_INT_32,
+    i: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5'])
   })
 
   const serialized = Packet[`write${mode}`]({
@@ -112,7 +113,14 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
       { a: 12_000, b: [3, 4], c: [5, 69, -17] },
       { a: -12_000, b: [-3, -4], c: [4, 68, -18] }
     ],
-    h: 1
+    h: 1,
+    i: {
+      f1: true,
+      f2: true,
+      f3: false,
+      f4: false,
+      f5: true
+    }
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -155,6 +163,11 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
   assert.equal(data.g[0].c[2], -17)
   assert.equal(data.g[1].c[2], -18)
   assert.equal(data.h, 1)
+  assert.equal(data.i.f1, true)
+  assert.equal(data.i.f2, true)
+  assert.equal(data.i.f3, false)
+  assert.equal(data.i.f4, false)
+  assert.equal(data.i.f5, true)
 
   console.log(`[WRITE ${mode}] ComplexPacket: PASS`)
 }

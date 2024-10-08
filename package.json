@@ -22,6 +22,7 @@
     "bytes",
     "struct",
     "schema",
+    "bitflags",
     "serialize",
     "deserialize",
     "encode",

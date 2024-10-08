@@ -78,6 +78,27 @@ export function FieldFixedArray<T extends Field | BinaryPacket<Definition>, Leng
   return [item, length]
 }
 
+type BitFlags = (string[] | ReadonlyArray<string>) & {
+  length: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+}
+
+/**
+ * Defines a sequence of up to 8 "flags" (basically single bits/booleans) that can be packed together into a single 8 bits value. \
+ * This is useful for minimizing bytes usage when there are lots of boolean fields/flags, instead of saving each flag separately as its own 8 bits value.
+ *
+ * The input should be an array of strings (with at most 8 elements) where each string defines the name of a flag. \
+ * This is just for definition purposes, then when actually writing or reading packets it'll just be a record-object with those names as keys and boolean values.
+ */
+export function FieldBitFlags<const FlagsArray extends BitFlags>(flags: FlagsArray) {
+  if (flags.length > 8) {
+    throw new Error(
+      `Invalid BinaryPacket definition: a BitFlags field can have only up to 8 flags, given: ${flags.join(', ')}`
+    )
+  }
+
+  return { flags }
+}
+
 export class BinaryPacket<T extends Definition> {
   /**
    * Defines a new binary packet. \
@@ -286,15 +307,27 @@ export class BinaryPacket<T extends Definition> {
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = array
-      } else if (typeof def === 'object') {
-        // Single "subpacket"
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        result[name] = def.read(dataIn, offsetPointer, byteLength, readFunctions)
-      } else {
+      } else if (typeof def === 'number') {
         // Single primitive (number)
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = readFunctions[def](dataIn as any, offsetPointer.offset)
         offsetPointer.offset += BYTE_SIZE[def]
+      } else if ('flags' in def) {
+        // BitFlags
+        const flags = readFunctions[Field.UNSIGNED_INT_8](dataIn as any, offsetPointer.offset)
+        offsetPointer.offset += 1
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        result[name] = {}
+
+        for (let bit = 0; bit < def.flags.length; ++bit) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          result[name][def.flags[bit]] = !!(flags & (1 << bit))
+        }
+      } else {
+        // Single "subpacket"
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        result[name] = def.read(dataIn, offsetPointer, byteLength, readFunctions)
       }
     }
 
@@ -341,32 +374,50 @@ export class BinaryPacket<T extends Definition> {
     writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF
   ) {
     for (const [name, def] of this.entries) {
+      const data = dataOut[name]
+
       if (Array.isArray(def)) {
         // Statically-sized array
         const itemType = def[0]
         const length = def[1]!
-        const data = dataOut[name] as any[]
 
         if (typeof itemType === 'object') {
           for (let i = 0; i < length; ++i) {
-            itemType.fastWrite(buffer, data[i] as ToJson<Definition>, offsetPointer, writeFunctions)
+            itemType.fastWrite(
+              buffer,
+              (data as any[])[i] as ToJson<Definition>,
+              offsetPointer,
+              writeFunctions
+            )
           }
         } else {
           const itemSize = BYTE_SIZE[itemType]
 
           for (let i = 0; i < length; ++i) {
-            writeFunctions[itemType](buffer as any, data[i] as number, offsetPointer.offset)
+            writeFunctions[itemType](buffer as any, (data as number[])[i], offsetPointer.offset)
             offsetPointer.offset += itemSize
           }
         }
-      } else if (typeof def === 'object') {
+      } else if (typeof def === 'number') {
+        // Single primitive (number)
+        writeFunctions[def](buffer as any, data as number, offsetPointer.offset)
+        offsetPointer.offset += BYTE_SIZE[def]
+      } else if ('flags' in def) {
+        // BitFlags
+        let flags = 0
+
+        for (let bit = 0; bit < def.flags.length; ++bit) {
+          if ((data as Record<string, boolean>)[def.flags[bit]]) {
+            flags |= 1 << bit
+          }
+        }
+
+        writeFunctions[Field.UNSIGNED_INT_8](buffer as any, flags, offsetPointer.offset)
+        offsetPointer.offset += 1
+      } else {
         // Single "subpacket"
         // In fastWrite there cannot be arrays, but the cast is needed because TypeScript can't possibly know that.
-        def.fastWrite(buffer, dataOut[name] as ToJson<Definition>, offsetPointer, writeFunctions)
-      } else {
-        // Single primitive (number)
-        writeFunctions[def](buffer as any, dataOut[name] as number, offsetPointer.offset)
-        offsetPointer.offset += BYTE_SIZE[def]
+        def.fastWrite(buffer, data as ToJson<Definition>, offsetPointer, writeFunctions)
       }
     }
   }
@@ -462,7 +513,23 @@ export class BinaryPacket<T extends Definition> {
             }
           }
         }
-      } else if (typeof def === 'object') {
+      } else if (typeof def === 'number') {
+        // Single primitive (number)
+        writeFunctions[def](buffer as any, data as number, offsetPointer.offset)
+        offsetPointer.offset += BYTE_SIZE[def]
+      } else if ('flags' in def) {
+        // BitFlags
+        let flags = 0
+
+        for (let bit = 0; bit < def.flags.length; ++bit) {
+          if ((data as Record<string, boolean>)[def.flags[bit]]) {
+            flags |= 1 << bit
+          }
+        }
+
+        writeFunctions[Field.UNSIGNED_INT_8](buffer as any, flags, offsetPointer.offset)
+        offsetPointer.offset += 1
+      } else {
         // Single "subpacket"
         writeFunctions[Field.UNSIGNED_INT_8](buffer as any, def.packetId, offsetPointer.offset)
         offsetPointer.offset += 1
@@ -479,10 +546,6 @@ export class BinaryPacket<T extends Definition> {
 
         byteLength = offsetPointer.offset
         maxByteLength = buffer.byteLength
-      } else {
-        // Single primitive (number)
-        writeFunctions[def](buffer as any, data as number, offsetPointer.offset)
-        offsetPointer.offset += BYTE_SIZE[def]
       }
     }
 
@@ -534,7 +597,10 @@ export class BinaryPacket<T extends Definition> {
  * // ...
  */
 export type Definition = {
-  [fieldName: string]: MaybeArray<Field> | MaybeArray<BinaryPacket<Definition>>
+  [fieldName: string]:
+    | MaybeArray<Field>
+    | MaybeArray<BinaryPacket<Definition>>
+    | { flags: BitFlags }
 }
 
 type MaybeArray<T> = T | [itemType: T] | [itemType: T, length: number]
@@ -553,7 +619,13 @@ type ToJson<T extends Definition> = {
         : number[] & { length: Length }
       : T[K] extends BinaryPacket<infer BPDef>
         ? ToJson<BPDef>
-        : number
+        : T[K] extends { flags: infer FlagsArray extends BitFlags }
+          ? BitFlagsToJson<FlagsArray>
+          : number
+}
+
+type BitFlagsToJson<FlagsArray extends BitFlags> = {
+  [key in FlagsArray[number]]: boolean
 }
 
 /**
@@ -597,6 +669,10 @@ function inspectEntries(entries: Entries) {
     } else if (type instanceof BinaryPacket) {
       minimumByteLength += type.minimumByteLength
       canFastWrite &&= type.canFastWrite
+    } else if (typeof type === 'object') {
+      // BitFlags
+      // BitFlags are always 1 byte long, because they can hold up to 8 booleans
+      minimumByteLength += 1
     } else {
       minimumByteLength += BYTE_SIZE[type]
     }

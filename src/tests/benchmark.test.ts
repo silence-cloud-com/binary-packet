@@ -3,7 +3,7 @@
 // Make sure that all the write and read tests pass before trying these ones.
 // In this benchmark the speeds are compared with msgpackr and restructure which are popular libraries for binary serialization/deserialization
 
-import { BinaryPacket, Field, FieldArray, FieldFixedArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray } from '..'
 import msgpackr from 'msgpackr'
 import r from 'restructure'
 import { gray, red, green, cyan, yellow } from 'colors/safe'
@@ -372,6 +372,7 @@ function testBenchmarkComplexPacket() {
   const TIMES = 1_000_000
 
   const SubPacket = BinaryPacket.define(255, {
+    subFlags: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8']),
     subI: Field.UNSIGNED_INT_32,
     subArray: FieldArray(Field.UNSIGNED_INT_32)
   })
@@ -390,6 +391,7 @@ function testBenchmarkComplexPacket() {
     i: r.uint32,
     a: new r.Array(r.uint32),
     sub: new r.Struct({
+      subFlags: new r.Bitfield(r.uint8, ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8']),
       subI: r.uint32,
       subArray: new r.Array(r.uint32)
     }),
@@ -398,11 +400,26 @@ function testBenchmarkComplexPacket() {
 
   let start = performance.now()
 
+  const flags = {
+    f1: true,
+    f2: true,
+    f3: true,
+    f4: false,
+    f5: false,
+    f6: true,
+    f7: false,
+    f8: false
+  }
+
   for (let i = 0; i < TIMES; ++i) {
     Packet.writeNodeBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: {
+        subFlags: flags,
+        subArray: [i, i * 2, i * 3],
+        subI: i * 2
+      },
       twoElements: [-i, i]
     })
   }
@@ -425,10 +442,11 @@ function testBenchmarkComplexPacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
+    //! MSGPACKR doesn't "natively" support bitflags, it wouldn't be a fair comparison making it encode a whole object instead of a single byte.
     packr.pack({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: { subFlags: 0b00100111, subArray: [i, i * 2, i * 3], subI: i * 2 },
       twoElements: [-i, i]
     })
   }
@@ -446,8 +464,8 @@ function testBenchmarkComplexPacket() {
   })
 
   console.log(gray('--------------------------------------------------------'))
-  console.log(yellow(`msgpackr: Wrote ${TIMES} ComplexPacket(s) in ${speed}`))
-  console.log(yellow(`msgpackr: Wrote 1 ComplexPacket every ${speedSingle}`))
+  console.log(yellow(`msgpackr: Wrote ${TIMES} ComplexPacket(s) in ${speed} (no bitflags)`))
+  console.log(yellow(`msgpackr: Wrote 1 ComplexPacket every ${speedSingle} (no bitflags)`))
 
   start = performance.now()
 
@@ -455,7 +473,7 @@ function testBenchmarkComplexPacket() {
     PacketFromRestructure.toBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: { subFlags: flags, subArray: [i, i * 2, i * 3], subI: i * 2 },
       twoElements: [-i, i]
     })
   }
@@ -480,29 +498,30 @@ function testBenchmarkComplexPacket() {
 
   const packets = Array(TIMES) as Buffer[]
   const packeds = Array(TIMES) as Buffer[]
-  const structures = Array(TIMES) as Buffer[]
+  //const structures = Array(TIMES) as Buffer[]
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: { subFlags: flags, subArray: [i, i * 2, i * 3], subI: i * 2 },
       twoElements: [-i, i]
     })
 
     packeds[i] = packr.pack({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: { subFlags: 0b00100111, subArray: [i, i * 2, i * 3], subI: i * 2 },
       twoElements: [-i, i]
     })
 
-    structures[i] = PacketFromRestructure.toBuffer({
+    // Useless writing since the read will crash
+    /*structures[i] = PacketFromRestructure.toBuffer({
       i,
       a: [i + 1, i + 2],
-      sub: { subArray: [i, i * 2, i * 3], subI: i * 2 },
+      sub: { subFlags: flags, subArray: [i, i * 2, i * 3], subI: i * 2 },
       twoElements: [-i, i]
-    })
+    })*/
   }
 
   start = performance.now()
@@ -545,8 +564,8 @@ function testBenchmarkComplexPacket() {
   })
 
   console.log(gray('--------------------------------------------------------'))
-  console.log(yellow(`msgpackr: Read ${TIMES} ComplexPacket(s) in ${speed}`))
-  console.log(yellow(`msgpackr: Read 1 ComplexPacket every ${speedSingle}`))
+  console.log(yellow(`msgpackr: Read ${TIMES} ComplexPacket(s) in ${speed} (no bitflags)`))
+  console.log(yellow(`msgpackr: Read 1 ComplexPacket every ${speedSingle} (no bitflags)`))
 
   // Restructure reads fail and throw exceptions with the ComplexPacket structure: do not bother.
   console.log(gray('--------------------------------------------------------'))

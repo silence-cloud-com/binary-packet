@@ -1,5 +1,5 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldFixedArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray } from '..'
 
 function testReadEmptyPacket() {
   const PACKET_ID = 1
@@ -113,10 +113,11 @@ function testReadComplexPacket() {
       b: FieldArray(Field.INT_8)
     }),
     f: Field.FLOAT_64,
-    g: FieldFixedArray(Field.INT_8, 4)
+    g: FieldFixedArray(Field.INT_8, 4),
+    h: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'])
   })
 
-  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8 + 1 * 4
+  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8 + 1 * 4 + 1
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))
@@ -133,6 +134,7 @@ function testReadComplexPacket() {
   view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1, -101)
   view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1 + 1, 102)
   view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1 + 1 + 1, -103)
+  view.setInt8(1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 8 + 1 + 1 + 1 + 1, 0b10001101)
 
   assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
   assert.equal(BinaryPacket.readPacketIdDataView(view, 6), SUBPACKET_ID)
@@ -151,6 +153,14 @@ function testReadComplexPacket() {
   assert.equal(data.g[1], -101)
   assert.equal(data.g[2], 102)
   assert.equal(data.g[3], -103)
+  assert.equal(data.h.f1, true)
+  assert.equal(data.h.f2, false)
+  assert.equal(data.h.f3, true)
+  assert.equal(data.h.f4, true)
+  assert.equal(data.h.f5, false)
+  assert.equal(data.h.f6, false)
+  assert.equal(data.h.f7, false)
+  assert.equal(data.h.f8, true)
 
   try {
     ComplexPacket.readDataView(view, { offset: expectedMinLength })
