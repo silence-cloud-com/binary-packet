@@ -97,9 +97,9 @@ function testBenchmarkEmptyPacket() {
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
-  const packets: Buffer[] = Array(TIMES)
-  const packeds: Buffer[] = Array(TIMES)
-  const structures: Buffer[] = Array(TIMES)
+  const packets = Array(TIMES) as Buffer[]
+  const packeds = Array(TIMES) as Buffer[]
+  const structures = Array(TIMES) as Buffer[]
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({})
@@ -131,7 +131,7 @@ function testBenchmarkEmptyPacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    const obj = unpackr.unpack(packeds[i])
+    const obj = unpackr.unpack(packeds[i]) as unknown
   }
 
   time = performance.now() - start
@@ -267,9 +267,9 @@ function testBenchmarkSimplePacket() {
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
-  const packets: Buffer[] = Array(TIMES)
-  const packeds: Buffer[] = Array(TIMES)
-  const structures: Buffer[] = Array(TIMES)
+  const packets = Array(TIMES) as Buffer[]
+  const packeds = Array(TIMES) as Buffer[]
+  const structures = Array(TIMES) as Buffer[]
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({
@@ -318,7 +318,7 @@ function testBenchmarkSimplePacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    const obj = unpackr.unpack(packeds[i])
+    const obj = unpackr.unpack(packeds[i]) as unknown
   }
 
   time = performance.now() - start
@@ -463,9 +463,9 @@ function testBenchmarkComplexPacket() {
 
   console.log(gray('Filling buffers for read benchmark...\n'))
 
-  const packets: Buffer[] = Array(TIMES)
-  const packeds: Buffer[] = Array(TIMES)
-  const structures: Buffer[] = Array(TIMES)
+  const packets = Array(TIMES) as Buffer[]
+  const packeds = Array(TIMES) as Buffer[]
+  const structures = Array(TIMES) as Buffer[]
 
   for (let i = 0; i < TIMES; ++i) {
     packets[i] = Packet.writeNodeBuffer({
@@ -511,7 +511,7 @@ function testBenchmarkComplexPacket() {
   start = performance.now()
 
   for (let i = 0; i < TIMES; ++i) {
-    const obj = unpackr.unpack(packeds[i])
+    const obj = unpackr.unpack(packeds[i]) as unknown
   }
 
   time = performance.now() - start

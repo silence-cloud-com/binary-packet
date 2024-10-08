@@ -11,7 +11,7 @@ function testWriteEmptyPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') {
   const Packet = BinaryPacket.define(PACKET_ID)
 
   const serialized = Packet[`write${mode}`]({})
-  let data: any
+  let data: ReturnType<(typeof Packet)['read']>
 
   if (mode === 'ArrayBuffer') {
     data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)
@@ -45,7 +45,7 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     e: random
   })
 
-  let data: any
+  let data: ReturnType<(typeof Packet)['read']>
 
   if (mode === 'ArrayBuffer') {
     data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)
@@ -108,7 +108,7 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
     h: 1
   })
 
-  let data: any
+  let data: ReturnType<(typeof Packet)['read']>
 
   if (mode === 'ArrayBuffer') {
     data = Packet.readArrayBuffer(serialized.buffer, serialized.byteOffset, serialized.byteLength)

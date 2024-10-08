@@ -259,12 +259,15 @@ export class BinaryPacket<T extends Definition> {
           }
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = array
       } else if (typeof def === 'object') {
         // Single "subpacket"
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = def.read(dataIn, offsetPointer, byteLength, readFunctions)
       } else {
         // Single primitive (number)
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = readFunctions[def](dataIn as any, offsetPointer.offset)
         offsetPointer.offset += BYTE_SIZE[def]
       }
@@ -540,7 +543,7 @@ function inspectEntries(entries: Entries) {
 // that map a field-type to a functionality //
 //////////////////////////////////////////////
 
-const BYTE_SIZE = Array(8)
+const BYTE_SIZE = Array(8) as number[]
 
 BYTE_SIZE[Field.UNSIGNED_INT_8] = 1
 BYTE_SIZE[Field.INT_8] = 1
@@ -554,22 +557,21 @@ BYTE_SIZE[Field.FLOAT_32] = 4
 
 BYTE_SIZE[Field.FLOAT_64] = 8
 
-const GET_FUNCTION: ((view: DataView, offset: number, littleEndian?: boolean) => number)[] =
-  Array(8)
+const GET_FUNCTION = Array(8) as ((view: DataView, offset: number) => number)[]
 
 GET_FUNCTION[Field.UNSIGNED_INT_8] = (view, offset) => view.getUint8(offset)
 GET_FUNCTION[Field.INT_8] = (view, offset) => view.getInt8(offset)
 
-GET_FUNCTION[Field.UNSIGNED_INT_16] = (view, offset, le) => view.getUint16(offset, le)
-GET_FUNCTION[Field.INT_16] = (view, offset, le) => view.getInt16(offset, le)
+GET_FUNCTION[Field.UNSIGNED_INT_16] = (view, offset) => view.getUint16(offset)
+GET_FUNCTION[Field.INT_16] = (view, offset) => view.getInt16(offset)
 
-GET_FUNCTION[Field.UNSIGNED_INT_32] = (view, offset, le) => view.getUint32(offset, le)
-GET_FUNCTION[Field.INT_32] = (view, offset, le) => view.getInt32(offset, le)
-GET_FUNCTION[Field.FLOAT_32] = (view, offset, le) => view.getFloat32(offset, le)
+GET_FUNCTION[Field.UNSIGNED_INT_32] = (view, offset) => view.getUint32(offset)
+GET_FUNCTION[Field.INT_32] = (view, offset) => view.getInt32(offset)
+GET_FUNCTION[Field.FLOAT_32] = (view, offset) => view.getFloat32(offset)
 
-GET_FUNCTION[Field.FLOAT_64] = (view, offset, le) => view.getFloat64(offset, le)
+GET_FUNCTION[Field.FLOAT_64] = (view, offset) => view.getFloat64(offset)
 
-const SET_FUNCTION: ((view: DataView, value: number, offset: number) => void)[] = Array(8)
+const SET_FUNCTION = Array(8) as ((view: DataView, value: number, offset: number) => void)[]
 
 SET_FUNCTION[Field.UNSIGNED_INT_8] = (view, value, offset) => view.setUint8(offset, value)
 SET_FUNCTION[Field.INT_8] = (view, value, offset) => view.setInt8(offset, value)
@@ -583,7 +585,7 @@ SET_FUNCTION[Field.FLOAT_32] = (view, value, offset) => view.setFloat32(offset, 
 
 SET_FUNCTION[Field.FLOAT_64] = (view, value, offset) => view.setFloat64(offset, value)
 
-const SET_FUNCTION_BUF: ((nodeBuffer: Buffer, value: number, offset: number) => void)[] = Array(8)
+const SET_FUNCTION_BUF = Array(8) as ((nodeBuffer: Buffer, value: number, offset: number) => void)[]
 
 if (hasNodeBuffers) {
   SET_FUNCTION_BUF[Field.UNSIGNED_INT_8] = (view, value, offset) => view.writeUint8(value, offset)
@@ -601,7 +603,7 @@ if (hasNodeBuffers) {
   SET_FUNCTION_BUF[Field.FLOAT_64] = (view, value, offset) => view.writeDoubleLE(value, offset)
 }
 
-const GET_FUNCTION_BUF: ((nodeBuffer: Buffer, offset: number) => number)[] = Array(8)
+const GET_FUNCTION_BUF = Array(8) as ((nodeBuffer: Buffer, offset: number) => number)[]
 
 if (hasNodeBuffers) {
   GET_FUNCTION_BUF[Field.UNSIGNED_INT_8] = (view, offset) => view.readUint8(offset)

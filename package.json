@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsup",
     "test": "node -r ts-node/register/transpile-only src/tests/reads.test.ts && node -r ts-node/register/transpile-only src/tests/writes.test.ts",
-    "benchmark": "node -r ts-node/register/transpile-only src/tests/benchmark.test.ts"
+    "benchmark": "node -r ts-node/register/transpile-only src/tests/benchmark.test.ts",
+    "lint": "eslint"
   },
   "keywords": [
     "binary-packet",
@@ -45,13 +46,15 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "colors": "^1.4.0",
+    "eslint": "^9.12.0",
     "msgpackr": "^1.11.0",
     "prettier": "^3.3.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "restructure": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.8.1"
   },
   "engines": {
     "node": ">=16"
