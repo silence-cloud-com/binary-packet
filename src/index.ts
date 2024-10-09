@@ -1,4 +1,4 @@
-import { growDataView, growNodeBuffer, hasNodeBuffers } from './buffers'
+import { growDataView, growNodeBuffer, hasNodeBuffers, type TrueArrayBuffer } from './buffers'
 
 export const enum Field {
   /**
@@ -99,6 +99,12 @@ export function FieldBitFlags<const FlagsArray extends BitFlags>(flags: FlagsArr
   return { flags }
 }
 
+/**
+ * Do not manually construct this type: an object of this kind is returned by a BinaryPacket `createVisitor` method. \
+ * Used in the `BinaryPacket::visit` static method to perform a sort of "pattern matching" on an incoming packet (of yet unknown type) buffer.
+ */
+type Visitor = [BinaryPacket<Definition>, (packet: any) => void]
+
 export class BinaryPacket<T extends Definition> {
   /**
    * Defines a new binary packet. \
@@ -145,8 +151,49 @@ export class BinaryPacket<T extends Definition> {
    * NOTE: Due to security issues, the `byteOffset` argument cannot be defaulted and must be provided by the user. \
    * NOTE: For more information read the `readArrayBuffer` method documentation.
    */
-  static readPacketIdArrayBuffer(arraybuffer: ArrayBuffer, byteOffset: number) {
+  static readPacketIdArrayBuffer(arraybuffer: TrueArrayBuffer, byteOffset: number) {
     return new Uint8Array(arraybuffer, byteOffset, 1)[0]
+  }
+
+  /**
+   * Visits and "pattern matches" the given Buffer through the given visitors. \
+   * The Buffer is compared to the series of visitors through its Packet ID, and, if an appropriate visitor is found: its callback is called.
+   *
+   * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
+   */
+  static visitNodeBuffer(buffer: Buffer, ...visitors: Visitor[]) {
+    return BinaryPacket.visit(buffer, GET_FUNCTION_BUF, visitors)
+  }
+
+  /**
+   * Visits and "pattern matches" the given DataView through the given visitors. \
+   * The DataView is compared to the series of visitors through its Packet ID, and, if an appropriate visitor is found: its callback is called.
+   *
+   * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
+   */
+  static visitDataView(dataview: DataView, ...visitors: Visitor[]) {
+    return BinaryPacket.visit(dataview, GET_FUNCTION, visitors)
+  }
+
+  /**
+   * Visits and "pattern matches" the given ArrayBuffer through the given visitors. \
+   * The ArrayBuffer is compared to the series of visitors through its Packet ID, and, if an appropriate visitor is found: its callback is called.
+   *
+   * NOTE: Due to security issues, the `byteOffset` and `byteLength` arguments must be provided by the user. \
+   * NOTE: For more information read the `readArrayBuffer` method documentation. \
+   * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
+   */
+  static visitArrayBuffer(
+    arraybuffer: TrueArrayBuffer,
+    byteOffset: number,
+    byteLength: number,
+    ...visitors: Visitor[]
+  ) {
+    return BinaryPacket.visit(
+      new DataView(arraybuffer, byteOffset, byteLength),
+      GET_FUNCTION,
+      visitors
+    )
   }
 
   /**
@@ -191,11 +238,7 @@ export class BinaryPacket<T extends Definition> {
    * NOTE: if you have a node Buffer do not bother wrapping it into an ArrayBuffer yourself. \
    * NOTE: if you have a node Buffer use the appropriate `readNodeBuffer` as it is much faster and less error prone.
    */
-  readArrayBuffer(
-    dataIn: ArrayBuffer & { buffer?: undefined },
-    byteOffset: number,
-    byteLength: number
-  ) {
+  readArrayBuffer(dataIn: TrueArrayBuffer, byteOffset: number, byteLength: number) {
     return this.read(
       hasNodeBuffers
         ? Buffer.from(dataIn, byteOffset, byteLength)
@@ -240,6 +283,19 @@ export class BinaryPacket<T extends Definition> {
     return { buffer: buf.buffer, byteLength: buf.byteLength, byteOffset: buf.byteOffset }
   }
 
+  /**
+   * Creates a "visitor" object for this BinaryPacket definition. \
+   * Used when visiting and "pattern matching" buffers with the `BinaryPacket::visit` static utility methods. \
+   *
+   * For more information read the `BinaryPacket::visitNodeBuffer` documentation. \
+   * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
+   */
+  visitor(onVisit: (packet: ToJson<T>) => void): Visitor {
+    return [this, onVisit]
+  }
+
+  /// PRIVATE
+
   private readonly entries: Entries
   readonly canFastWrite: boolean
   readonly minimumByteLength: number
@@ -253,6 +309,18 @@ export class BinaryPacket<T extends Definition> {
 
     this.minimumByteLength = inspection.minimumByteLength
     this.canFastWrite = inspection.canFastWrite
+  }
+
+  private static visit(
+    dataIn: Buffer | DataView,
+    readFunctions: typeof GET_FUNCTION | typeof GET_FUNCTION_BUF,
+    visitors: Visitor[]
+  ) {
+    for (const [Packet, onVisit] of visitors) {
+      if (Packet.packetId === readFunctions[Field.UNSIGNED_INT_8](dataIn as any, 0)) {
+        return onVisit(Packet.read(dataIn, { offset: 0 }, dataIn.byteLength, readFunctions))
+      }
+    }
   }
 
   private read(
@@ -605,10 +673,14 @@ export type Definition = {
 
 type MaybeArray<T> = T | [itemType: T] | [itemType: T, length: number]
 
+type BitFlagsToJson<FlagsArray extends BitFlags> = {
+  [key in FlagsArray[number]]: boolean
+}
+
 /**
  * Meta-type that converts a `Definition` schema to the type of the actual JavaScript object that will be written into a packet or read from. \
  */
-type ToJson<T extends Definition> = {
+export type ToJson<T extends Definition> = {
   [K in keyof T]: T[K] extends [infer Item]
     ? Item extends BinaryPacket<infer BPDef>
       ? ToJson<BPDef>[]
@@ -622,10 +694,6 @@ type ToJson<T extends Definition> = {
         : T[K] extends { flags: infer FlagsArray extends BitFlags }
           ? BitFlagsToJson<FlagsArray>
           : number
-}
-
-type BitFlagsToJson<FlagsArray extends BitFlags> = {
-  [key in FlagsArray[number]]: boolean
 }
 
 /**

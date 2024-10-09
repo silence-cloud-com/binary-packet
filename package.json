@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "test": "node -r ts-node/register/transpile-only src/tests/reads.test.ts && node -r ts-node/register/transpile-only src/tests/writes.test.ts",
+    "test": "node -r ts-node/register/transpile-only src/tests/reads.test.ts && node -r ts-node/register/transpile-only src/tests/writes.test.ts && node -r ts-node/register/transpile-only src/tests/visitors.test.ts",
     "benchmark": "node -r ts-node/register/transpile-only src/tests/benchmark.test.ts",
     "lint": "eslint"
   },

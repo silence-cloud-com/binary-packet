@@ -19,6 +19,8 @@ Bun: \
 Define the structure of the packets through unique Packet IDs and "schema" objects. \
 This "schema" object is simply called `Definition` and defines the shape of a packet: specifically its `fields` and their `types`.
 
+### Fields / Data types
+
 Currently, these kinds of `fields` are supported:
 | Type | Description | Values | Size (bytes) |
 |------|-------------|--------------|--------------|
@@ -38,12 +40,19 @@ Currently, these kinds of `fields` are supported:
 As shown, both arrays and nested objects ("subpackets") are supported. \
 Note: `FieldFixedArray` is much more memory efficient and performant than `FieldArray`, but require a pre-defined length.
 
+### Pattern matching
+
+The library exposes an easy way to "pattern match" packets of a **yet-unknown-type** in a type-safe manner through a `visitor` pattern. \
+For an example, search for "**pattern matching**" in the examples below.
+
 ## Usage Examples
+
+### Example: (incomplete) definition of a simplistic board game
 
 ```typescript
 import { BinaryPacket, Field, FieldArray } from 'binary-packet'
 
-// Imagine we have a game board where each cell is a square and is one unit big.
+// Suppose we have a game board where each cell is a square and is one unit big.
 // A cell can be then defined by its X and Y coordinates.
 // For simplicity, let's say there cannot be more than 256 cells, so we can use 8 bits for each coordinate.
 const Cell = {
@@ -101,6 +110,39 @@ assert(board.cells[0].x === 0)
 assert(board.cells[0].y === 0)
 assert(board.cells[1].x === 1)
 assert(board.cells[1].y === 1)
+```
+
+### Example: pattern matching
+
+```typescript
+import assert from 'assert/strict'
+import { BinaryPacket, Field } from 'binary-packet'
+
+// Packet A definition
+const A = BinaryPacket.define(1)
+
+// Packet B definition: This is the kind of packets that we care about in this example!
+const B = BinaryPacket.define(2, { data: Field.UNSIGNED_INT_8 })
+
+// Packet C definition
+const C = BinaryPacket.define(3)
+
+// Assume the following packet comes from the network or, for some other reason, is a buffer we do not know anything about.
+const buffer = B.writeNodeBuffer({ data: 255 })
+
+BinaryPacket.visitNodeBuffer(
+  buffer,
+
+  A.visitor(() => assert(false, 'Erroneously accepted visitor A')),
+
+  B.visitor(packet => {
+    // Do something with the packet
+    assert.equal(packet.data, 255)
+    console.log('Accepted visitor B:', packet)
+  }),
+
+  C.visitor(() => assert(false, 'Erroneously accepted visitor C'))
+)
 ```
 
 ## Benchmarks & Alternatives

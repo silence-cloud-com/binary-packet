@@ -1,3 +1,9 @@
+/**
+ * Exclusively matches objects of type `ArrayBuffer` and no other types that inherit from it. \
+ * This is needed because the `DataView` constructor explicitly requires a "true" ArrayBuffer, or else it throws.
+ */
+export type TrueArrayBuffer = ArrayBuffer & { buffer?: undefined }
+
 export const hasNodeBuffers = typeof Buffer === 'function'
 
 export function growDataView(dataview: DataView, newByteLength: number) {
