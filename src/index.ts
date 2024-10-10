@@ -257,7 +257,16 @@ export class BinaryPacket<T extends Definition> {
    */
   writeNodeBuffer(dataOut: ToJson<T>) {
     const buffer = Buffer.allocUnsafe(this.minimumByteLength)
-    return this.write(buffer, dataOut, { offset: 0 }, SET_FUNCTION_BUF, growNodeBuffer)
+
+    return this.write(
+      buffer,
+      dataOut,
+      { offset: 0 },
+      this.minimumByteLength,
+      this.minimumByteLength,
+      SET_FUNCTION_BUF,
+      growNodeBuffer
+    )
   }
 
   /**
@@ -265,7 +274,16 @@ export class BinaryPacket<T extends Definition> {
    */
   writeDataView(dataOut: ToJson<T>) {
     const dataview = new DataView(new ArrayBuffer(this.minimumByteLength))
-    return this.write(dataview, dataOut, { offset: 0 }, SET_FUNCTION, growDataView)
+
+    return this.write(
+      dataview,
+      dataOut,
+      { offset: 0 },
+      this.minimumByteLength,
+      this.minimumByteLength,
+      SET_FUNCTION,
+      growDataView
+    )
   }
 
   /**
@@ -297,7 +315,6 @@ export class BinaryPacket<T extends Definition> {
   /// PRIVATE
 
   private readonly entries: Entries
-  readonly canFastWrite: boolean
   readonly minimumByteLength: number
 
   private constructor(
@@ -305,10 +322,7 @@ export class BinaryPacket<T extends Definition> {
     definition?: T
   ) {
     this.entries = definition ? sortEntries(definition) : []
-    const inspection = inspectEntries(this.entries)
-
-    this.minimumByteLength = inspection.minimumByteLength
-    this.canFastWrite = inspection.canFastWrite
+    this.minimumByteLength = inspectEntries(this.entries).minimumByteLength
   }
 
   private static visit(
@@ -406,103 +420,14 @@ export class BinaryPacket<T extends Definition> {
     buffer: Buf,
     dataOut: ToJson<T>,
     offsetPointer: { offset: number },
+    byteLength: number,
+    maxByteLength: number,
     writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF,
     growBufferFunction: (buffer: Buf, newByteLength: number) => Buf
   ): Buf {
     writeFunctions[Field.UNSIGNED_INT_8](buffer as any, this.packetId, offsetPointer.offset)
     offsetPointer.offset += 1
 
-    if (this.canFastWrite) {
-      // If there are no arrays, the minimumByteLength always equals to the full needed byteLength.
-      // So we can take the fast path, since we know beforehand that the buffer isn't going to grow.
-      this.fastWrite(buffer, dataOut, offsetPointer, writeFunctions)
-      return buffer
-    } else {
-      // If non-empty arrays are encountered, the buffer must grow.
-      // If every array is empty, the speed of this path is comparable to the fast path.
-      return this.slowWrite(
-        buffer,
-        dataOut,
-        offsetPointer,
-        this.minimumByteLength,
-        this.minimumByteLength,
-        writeFunctions,
-        growBufferFunction
-      )
-    }
-  }
-
-  /**
-   * Fast write does not support writing dynamically-sized arrays.
-   */
-  private fastWrite<Buf extends DataView | Buffer>(
-    buffer: Buf,
-    dataOut: ToJson<T>,
-    offsetPointer: { offset: number },
-    writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF
-  ) {
-    for (const [name, def] of this.entries) {
-      const data = dataOut[name]
-
-      if (Array.isArray(def)) {
-        // Statically-sized array
-        const itemType = def[0]
-        const length = def[1]!
-
-        if (typeof itemType === 'object') {
-          for (let i = 0; i < length; ++i) {
-            itemType.fastWrite(
-              buffer,
-              (data as any[])[i] as ToJson<Definition>,
-              offsetPointer,
-              writeFunctions
-            )
-          }
-        } else {
-          const itemSize = BYTE_SIZE[itemType]
-
-          for (let i = 0; i < length; ++i) {
-            writeFunctions[itemType](buffer as any, (data as number[])[i], offsetPointer.offset)
-            offsetPointer.offset += itemSize
-          }
-        }
-      } else if (typeof def === 'number') {
-        // Single primitive (number)
-        writeFunctions[def](buffer as any, data as number, offsetPointer.offset)
-        offsetPointer.offset += BYTE_SIZE[def]
-      } else if ('flags' in def) {
-        // BitFlags
-        let flags = 0
-
-        for (let bit = 0; bit < def.flags.length; ++bit) {
-          if ((data as Record<string, boolean>)[def.flags[bit]]) {
-            flags |= 1 << bit
-          }
-        }
-
-        writeFunctions[Field.UNSIGNED_INT_8](buffer as any, flags, offsetPointer.offset)
-        offsetPointer.offset += 1
-      } else {
-        // Single "subpacket"
-        // In fastWrite there cannot be arrays, but the cast is needed because TypeScript can't possibly know that.
-        def.fastWrite(buffer, data as ToJson<Definition>, offsetPointer, writeFunctions)
-      }
-    }
-  }
-
-  /**
-   * The slow writing path tries writing data into the buffer as fast as the fast writing path does. \
-   * But, if a non-empty dynamically-sized array is encountered, the buffer needs to grow, slightly reducing performance.
-   */
-  private slowWrite<Buf extends DataView | Buffer>(
-    buffer: Buf,
-    dataOut: ToJson<T>,
-    offsetPointer: { offset: number },
-    byteLength: number,
-    maxByteLength: number,
-    writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF,
-    growBufferFunction: (buffer: Buf, newByteLength: number) => Buf
-  ): Buf {
     for (const [name, def] of this.entries) {
       const data = dataOut[name]
 
@@ -510,10 +435,11 @@ export class BinaryPacket<T extends Definition> {
         // Could be both an array of just numbers or "subpackets"
 
         const length = (data as any[]).length
-        const isDynamicArray = def[1] === undefined
 
         // Check if it is a dynamically-sized array, if it is, the length of the array must be serialized in the buffer before its elements
         // Explicitly check for undefined and not falsy values because it could be a statically-sized array of 0 elements.
+        const isDynamicArray = def[1] === undefined
+
         if (isDynamicArray) {
           writeFunctions[Field.UNSIGNED_INT_8](buffer as any, length, offsetPointer.offset)
           offsetPointer.offset += 1
@@ -537,15 +463,7 @@ export class BinaryPacket<T extends Definition> {
             }
 
             for (const object of data as unknown as ToJson<Definition>[]) {
-              writeFunctions[Field.UNSIGNED_INT_8](
-                buffer as any,
-                itemType.packetId,
-                offsetPointer.offset
-              )
-
-              offsetPointer.offset += 1
-
-              buffer = itemType.slowWrite(
+              buffer = itemType.write(
                 buffer,
                 object,
                 offsetPointer,
@@ -599,10 +517,7 @@ export class BinaryPacket<T extends Definition> {
         offsetPointer.offset += 1
       } else {
         // Single "subpacket"
-        writeFunctions[Field.UNSIGNED_INT_8](buffer as any, def.packetId, offsetPointer.offset)
-        offsetPointer.offset += 1
-
-        buffer = def.slowWrite(
+        buffer = def.write(
           buffer,
           data as ToJson<Definition>,
           offsetPointer,
@@ -718,7 +633,6 @@ type Entries = ReturnType<typeof sortEntries>
 function inspectEntries(entries: Entries) {
   // The PacketID is already 1 byte, that's why we aren't starting from 0.
   let minimumByteLength = 1
-  let canFastWrite = true
 
   for (const [, type] of entries) {
     if (Array.isArray(type)) {
@@ -732,11 +646,9 @@ function inspectEntries(entries: Entries) {
         // Dynamically-sized array
         // Adding 1 byte to serialize the array length
         minimumByteLength += 1
-        canFastWrite = false
       }
     } else if (type instanceof BinaryPacket) {
       minimumByteLength += type.minimumByteLength
-      canFastWrite &&= type.canFastWrite
     } else if (typeof type === 'object') {
       // BitFlags
       // BitFlags are always 1 byte long, because they can hold up to 8 booleans
@@ -746,7 +658,7 @@ function inspectEntries(entries: Entries) {
     }
   }
 
-  return { minimumByteLength, canFastWrite }
+  return { minimumByteLength }
 }
 
 //////////////////////////////////////////////
