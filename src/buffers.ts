@@ -27,3 +27,52 @@ export function growNodeBuffer(buffer: Buffer, newByteLength: number) {
   buffer.copy(newBuffer)
   return newBuffer
 }
+
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
+
+export function encodeStringIntoDataView(dataview: DataView, byteOffset: number, string: string) {
+  const strlen = string.length
+  const u8Buffer = new Uint8Array(dataview.buffer, dataview.byteOffset + byteOffset, strlen)
+
+  if (strlen <= 64) {
+    encodeSmallString(u8Buffer, 0, string, strlen)
+  } else {
+    textEncoder.encodeInto(string, u8Buffer)
+  }
+}
+
+export function encodeStringIntoNodeBuffer(buffer: Buffer, byteOffset: number, string: string) {
+  const strlen = string.length
+
+  if (strlen <= 64) {
+    encodeSmallString(buffer, byteOffset, string, strlen)
+  } else {
+    buffer.utf8Write(string, byteOffset, strlen)
+  }
+}
+
+function encodeSmallString(buffer: Uint8Array, byteOffset: number, string: string, strlen: number) {
+  for (let i = 0; i < strlen; ++i) {
+    buffer[byteOffset + i] = string.charCodeAt(i) & 0xff
+  }
+}
+
+export function decodeStringFromNodeBuffer(buffer: Buffer, byteOffset: number, strlen: number) {
+  return buffer.subarray(byteOffset, byteOffset + strlen).toString('utf8')
+}
+
+export function decodeStringFromDataView(dataview: DataView, byteOffset: number, strlen: number) {
+  return textDecoder.decode(new DataView(dataview.buffer, dataview.byteOffset + byteOffset, strlen))
+}
+
+declare global {
+  interface Buffer {
+    /**
+     * Node buffer's internals function. \
+     * For some reason it is not exposed through TypeScript. \
+     * Fastest way to write utf8 strings into buffers.
+     */
+    utf8Write(string: string, byteOffset?: number, byteLength?: number): number
+  }
+}

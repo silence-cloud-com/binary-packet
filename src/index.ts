@@ -1,4 +1,13 @@
-import { growDataView, growNodeBuffer, hasNodeBuffers, type TrueArrayBuffer } from './buffers'
+import {
+  decodeStringFromDataView,
+  decodeStringFromNodeBuffer,
+  encodeStringIntoDataView,
+  encodeStringIntoNodeBuffer,
+  growDataView,
+  growNodeBuffer,
+  hasNodeBuffers,
+  type TrueArrayBuffer
+} from './buffers'
 
 export const enum Field {
   /**
@@ -56,7 +65,9 @@ export const enum Field {
  * NOTE: If an array will ALWAYS have the same length, prefer using the `FieldFixedArray` type, for both better performance and memory efficiency. \
  * NOTE: As of now, dynamic arrays can have at most 256 elements.
  */
-export function FieldArray<T extends Field | BinaryPacket<Definition>>(item: T): [itemType: T] {
+export function FieldArray<T extends Field | BinaryPacket<Definition> | ''>(
+  item: T
+): [itemType: T] {
   return [item]
 }
 
@@ -67,10 +78,10 @@ export function FieldArray<T extends Field | BinaryPacket<Definition>>(item: T):
  *
  * NOTE: If an array will not always have the same length, use the `FieldArray` type.
  */
-export function FieldFixedArray<T extends Field | BinaryPacket<Definition>, Length extends number>(
-  item: T,
-  length: Length
-): [itemType: T, length: Length] {
+export function FieldFixedArray<
+  T extends Field | BinaryPacket<Definition> | '',
+  Length extends number
+>(item: T, length: Length): [itemType: T, length: Length] {
   if (length < 0 || !Number.isFinite(length)) {
     throw new RangeError('Length of a FixedArray must be a positive integer.')
   }
@@ -97,6 +108,16 @@ export function FieldBitFlags<const FlagsArray extends BitFlags>(flags: FlagsArr
   }
 
   return { flags }
+}
+
+/**
+ * Defines a string field. \
+ * Strings cannot be more than 65536 characters long.
+ *
+ * NOTE: Only strings containing just ASCII and/or single-octet UTF-8 characters are supported.
+ */
+export function FieldString() {
+  return '' as const
 }
 
 /**
@@ -162,7 +183,7 @@ export class BinaryPacket<T extends Definition> {
    * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
    */
   static visitNodeBuffer(buffer: Buffer, ...visitors: Visitor[]) {
-    return BinaryPacket.visit(buffer, GET_FUNCTION_BUF, visitors)
+    return BinaryPacket.visit(buffer, GET_FUNCTION_BUF, decodeStringFromNodeBuffer, visitors)
   }
 
   /**
@@ -172,7 +193,7 @@ export class BinaryPacket<T extends Definition> {
    * NOTE: If visiting packets in a loop, for both performance and memory efficiency reasons, it is much better to create each visitor only once before the loop starts and not every iteration.
    */
   static visitDataView(dataview: DataView, ...visitors: Visitor[]) {
-    return BinaryPacket.visit(dataview, GET_FUNCTION, visitors)
+    return BinaryPacket.visit(dataview, GET_FUNCTION, decodeStringFromDataView, visitors)
   }
 
   /**
@@ -192,6 +213,7 @@ export class BinaryPacket<T extends Definition> {
     return BinaryPacket.visit(
       new DataView(arraybuffer, byteOffset, byteLength),
       GET_FUNCTION,
+      decodeStringFromDataView,
       visitors
     )
   }
@@ -210,7 +232,13 @@ export class BinaryPacket<T extends Definition> {
     offsetPointer = { offset: 0 },
     byteLength = dataIn.byteLength
   ): ToJson<T> {
-    return this.read(dataIn, offsetPointer, byteLength, GET_FUNCTION_BUF)
+    return this.read(
+      dataIn,
+      offsetPointer,
+      byteLength,
+      GET_FUNCTION_BUF,
+      decodeStringFromNodeBuffer
+    )
   }
 
   /**
@@ -224,7 +252,7 @@ export class BinaryPacket<T extends Definition> {
     offsetPointer = { offset: 0 },
     byteLength = dataIn.byteLength
   ): ToJson<T> {
-    return this.read(dataIn, offsetPointer, byteLength, GET_FUNCTION)
+    return this.read(dataIn, offsetPointer, byteLength, GET_FUNCTION, decodeStringFromDataView)
   }
 
   /**
@@ -242,10 +270,11 @@ export class BinaryPacket<T extends Definition> {
     return this.read(
       hasNodeBuffers
         ? Buffer.from(dataIn, byteOffset, byteLength)
-        : new DataView(dataIn, byteOffset, byteLength),
+        : (new DataView(dataIn, byteOffset, byteLength) as any),
       { offset: 0 }, // The underlying buffer has already been offsetted
       byteLength,
-      hasNodeBuffers ? GET_FUNCTION_BUF : GET_FUNCTION
+      hasNodeBuffers ? GET_FUNCTION_BUF : GET_FUNCTION,
+      hasNodeBuffers ? decodeStringFromNodeBuffer : (decodeStringFromDataView as any)
     )
   }
 
@@ -256,16 +285,18 @@ export class BinaryPacket<T extends Definition> {
    * If possible, always prefer writing using this method, as it is much faster than the other ones.
    */
   writeNodeBuffer(dataOut: ToJson<T>) {
-    const buffer = Buffer.allocUnsafe(this.minimumByteLength)
+    const byteLength = this.precalculateBufferLengthWithStrings(dataOut)
+    const buffer = Buffer.allocUnsafe(byteLength)
 
     return this.write(
       buffer,
       dataOut,
       { offset: 0 },
-      this.minimumByteLength,
-      this.minimumByteLength,
+      byteLength,
+      byteLength,
       SET_FUNCTION_BUF,
-      growNodeBuffer
+      growNodeBuffer,
+      encodeStringIntoNodeBuffer
     )
   }
 
@@ -273,16 +304,18 @@ export class BinaryPacket<T extends Definition> {
    * Writes/serializes the given object into a DataView. \
    */
   writeDataView(dataOut: ToJson<T>) {
-    const dataview = new DataView(new ArrayBuffer(this.minimumByteLength))
+    const byteLength = this.precalculateBufferLengthWithStrings(dataOut)
+    const dataview = new DataView(new ArrayBuffer(byteLength))
 
     return this.write(
       dataview,
       dataOut,
       { offset: 0 },
-      this.minimumByteLength,
-      this.minimumByteLength,
+      byteLength,
+      byteLength,
       SET_FUNCTION,
-      growDataView
+      growDataView,
+      encodeStringIntoDataView
     )
   }
 
@@ -315,6 +348,7 @@ export class BinaryPacket<T extends Definition> {
   /// PRIVATE
 
   private readonly entries: Entries
+  readonly stringPositions: StringPositions
   readonly minimumByteLength: number
 
   private constructor(
@@ -322,26 +356,32 @@ export class BinaryPacket<T extends Definition> {
     definition?: T
   ) {
     this.entries = definition ? sortEntries(definition) : []
-    this.minimumByteLength = inspectEntries(this.entries).minimumByteLength
+    const inspection = inspectEntries(this.entries)
+    this.minimumByteLength = inspection.minimumByteLength
+    this.stringPositions = inspection.stringPositions
   }
 
-  private static visit(
-    dataIn: Buffer | DataView,
+  private static visit<Buf extends DataView | Buffer>(
+    dataIn: Buf,
     readFunctions: typeof GET_FUNCTION | typeof GET_FUNCTION_BUF,
+    decodeStringFunction: (dataIn: Buf, byteOffset: number, strlen: number) => string,
     visitors: Visitor[]
   ) {
     for (const [Packet, onVisit] of visitors) {
       if (Packet.packetId === readFunctions[Field.UNSIGNED_INT_8](dataIn as any, 0)) {
-        return onVisit(Packet.read(dataIn, { offset: 0 }, dataIn.byteLength, readFunctions))
+        return onVisit(
+          Packet.read(dataIn, { offset: 0 }, dataIn.byteLength, readFunctions, decodeStringFunction)
+        )
       }
     }
   }
 
-  private read(
-    dataIn: DataView | Buffer,
+  private read<Buf extends DataView | Buffer>(
+    dataIn: Buf,
     offsetPointer: { offset: number },
     byteLength: number,
-    readFunctions: typeof GET_FUNCTION | typeof GET_FUNCTION_BUF
+    readFunctions: typeof GET_FUNCTION | typeof GET_FUNCTION_BUF,
+    decodeStringFunction: (dataIn: Buf, byteOffset: number, strlen: number) => string
   ): ToJson<T> {
     if (byteLength + offsetPointer.offset < this.minimumByteLength) {
       throw new Error(
@@ -373,7 +413,22 @@ export class BinaryPacket<T extends Definition> {
         if (typeof itemType === 'object') {
           // Array of "subpackets"
           for (let i = 0; i < length; ++i) {
-            array[i] = itemType.read(dataIn, offsetPointer, byteLength, readFunctions)
+            array[i] = itemType.read(
+              dataIn,
+              offsetPointer,
+              byteLength,
+              readFunctions,
+              decodeStringFunction
+            )
+          }
+        } else if (itemType === '') {
+          // Array of strings
+          for (let i = 0; i < length; ++i) {
+            const strlen = readFunctions[Field.UNSIGNED_INT_16](dataIn as any, offsetPointer.offset)
+            offsetPointer.offset += 2
+
+            array[i] = decodeStringFunction(dataIn, offsetPointer.offset, strlen)
+            offsetPointer.offset += strlen
           }
         } else {
           // Array of primitives (numbers)
@@ -394,6 +449,13 @@ export class BinaryPacket<T extends Definition> {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         result[name] = readFunctions[def](dataIn as any, offsetPointer.offset)
         offsetPointer.offset += BYTE_SIZE[def]
+      } else if (def === '') {
+        const strlen = readFunctions[Field.UNSIGNED_INT_16](dataIn as any, offsetPointer.offset)
+        offsetPointer.offset += 2
+
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        result[name] = decodeStringFunction(dataIn, offsetPointer.offset, strlen)
+        offsetPointer.offset += strlen
       } else if ('flags' in def) {
         // BitFlags
         const flags = readFunctions[Field.UNSIGNED_INT_8](dataIn as any, offsetPointer.offset)
@@ -409,7 +471,13 @@ export class BinaryPacket<T extends Definition> {
       } else {
         // Single "subpacket"
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        result[name] = def.read(dataIn, offsetPointer, byteLength, readFunctions)
+        result[name] = def.read(
+          dataIn,
+          offsetPointer,
+          byteLength,
+          readFunctions,
+          decodeStringFunction
+        )
       }
     }
 
@@ -423,7 +491,8 @@ export class BinaryPacket<T extends Definition> {
     byteLength: number,
     maxByteLength: number,
     writeFunctions: typeof SET_FUNCTION | typeof SET_FUNCTION_BUF,
-    growBufferFunction: (buffer: Buf, newByteLength: number) => Buf
+    growBufferFunction: (buffer: Buf, newByteLength: number) => Buf,
+    encodeStringFunction: (buffer: Buf, byteOffset: number, string: string) => void
   ): Buf {
     writeFunctions[Field.UNSIGNED_INT_8](buffer as any, this.packetId, offsetPointer.offset)
     offsetPointer.offset += 1
@@ -463,6 +532,7 @@ export class BinaryPacket<T extends Definition> {
             }
 
             for (const object of data as unknown as ToJson<Definition>[]) {
+              // Array of "subpackets"
               buffer = itemType.write(
                 buffer,
                 object,
@@ -470,11 +540,24 @@ export class BinaryPacket<T extends Definition> {
                 byteLength,
                 maxByteLength,
                 writeFunctions,
-                growBufferFunction
+                growBufferFunction,
+                encodeStringFunction
               )
 
               byteLength = offsetPointer.offset
               maxByteLength = buffer.byteLength
+            }
+          } else if (itemType === '') {
+            // Array of strings
+            for (let i = 0; i < length; ++i) {
+              const str = (data as unknown as string[])[i]
+              const strlen = str.length
+
+              writeFunctions[Field.UNSIGNED_INT_16](buffer as any, strlen, offsetPointer.offset)
+              offsetPointer.offset += 2
+
+              encodeStringFunction(buffer, offsetPointer.offset, str)
+              offsetPointer.offset += strlen
             }
           } else {
             // Array of primitives (numbers)
@@ -503,6 +586,15 @@ export class BinaryPacket<T extends Definition> {
         // Single primitive (number)
         writeFunctions[def](buffer as any, data as number, offsetPointer.offset)
         offsetPointer.offset += BYTE_SIZE[def]
+      } else if (def === '') {
+        // String
+        const strlen = (data as string).length
+
+        writeFunctions[Field.UNSIGNED_INT_16](buffer as any, strlen, offsetPointer.offset)
+        offsetPointer.offset += 2
+
+        encodeStringFunction(buffer, offsetPointer.offset, data as string)
+        offsetPointer.offset += strlen
       } else if ('flags' in def) {
         // BitFlags
         let flags = 0
@@ -524,7 +616,8 @@ export class BinaryPacket<T extends Definition> {
           byteLength,
           maxByteLength,
           writeFunctions,
-          growBufferFunction
+          growBufferFunction,
+          encodeStringFunction
         )
 
         byteLength = offsetPointer.offset
@@ -533,6 +626,31 @@ export class BinaryPacket<T extends Definition> {
     }
 
     return buffer
+  }
+
+  private precalculateBufferLengthWithStrings(dataOut: ToJson<T>) {
+    let len = this.minimumByteLength
+
+    for (const field of this.stringPositions[0]) {
+      // String field
+      len += (dataOut[field] as string).length
+    }
+
+    for (const field of this.stringPositions[1]) {
+      // Array of strings field
+      for (const string of dataOut[field] as unknown as string[]) {
+        len += 2 + string.length
+      }
+    }
+
+    for (const field in this.stringPositions[2]) {
+      // Subpacket that has some string fields
+      len += this.stringPositions[2][field].precalculateBufferLengthWithStrings(
+        dataOut[field] as any
+      )
+    }
+
+    return len
   }
 }
 
@@ -583,6 +701,7 @@ export type Definition = {
   [fieldName: string]:
     | MaybeArray<Field>
     | MaybeArray<BinaryPacket<Definition>>
+    | MaybeArray<''>
     | { flags: BitFlags }
 }
 
@@ -599,16 +718,22 @@ export type ToJson<T extends Definition> = {
   [K in keyof T]: T[K] extends [infer Item]
     ? Item extends BinaryPacket<infer BPDef>
       ? ToJson<BPDef>[]
-      : number[]
+      : Item extends ''
+        ? string[]
+        : number[]
     : T[K] extends [infer Item, infer Length]
       ? Item extends BinaryPacket<infer BPDef>
         ? ToJson<BPDef>[] & { length: Length }
-        : number[] & { length: Length }
+        : Item extends ''
+          ? string[] & { length: Length }
+          : number[] & { length: Length }
       : T[K] extends BinaryPacket<infer BPDef>
         ? ToJson<BPDef>
         : T[K] extends { flags: infer FlagsArray extends BitFlags }
           ? BitFlagsToJson<FlagsArray>
-          : number
+          : T[K] extends ''
+            ? string
+            : number
 }
 
 /**
@@ -624,6 +749,14 @@ function sortEntries(definition: Definition) {
 
 type Entries = ReturnType<typeof sortEntries>
 
+type StringPositions = [
+  string[],
+  string[],
+  {
+    [field: string]: BinaryPacket<Definition>
+  }
+]
+
 /**
  * Helper function that "inspects" the entries of a BinaryPacket definition
  * and returns useful "stats" needed for writing and reading buffers.
@@ -634,31 +767,53 @@ function inspectEntries(entries: Entries) {
   // The PacketID is already 1 byte, that's why we aren't starting from 0.
   let minimumByteLength = 1
 
-  for (const [, type] of entries) {
+  const stringPositions: StringPositions = [[], [], {}]
+
+  for (const [name, type] of entries) {
     if (Array.isArray(type)) {
       if (type.length === 2) {
         // Statically-sized array
+        const isString = type[0] === ''
+
         const itemSize =
-          typeof type[0] === 'object' ? type[0].minimumByteLength : BYTE_SIZE[type[0]]
+          typeof type[0] === 'object'
+            ? type[0].minimumByteLength
+            : isString
+              ? 2
+              : BYTE_SIZE[type[0]]
 
         minimumByteLength += type[1] * itemSize
+
+        if (isString) {
+          stringPositions[1].push(name)
+        }
       } else {
         // Dynamically-sized array
         // Adding 1 byte to serialize the array length
         minimumByteLength += 1
+
+        if (type[0] === '') {
+          stringPositions[1].push(name)
+        }
       }
     } else if (type instanceof BinaryPacket) {
       minimumByteLength += type.minimumByteLength
+      stringPositions[2][name] = type
     } else if (typeof type === 'object') {
       // BitFlags
       // BitFlags are always 1 byte long, because they can hold up to 8 booleans
       minimumByteLength += 1
+    } else if (type === '') {
+      // String
+      // Adding 2 to serialize the string length
+      minimumByteLength += 2
+      stringPositions[0].push(name)
     } else {
       minimumByteLength += BYTE_SIZE[type]
     }
   }
 
-  return { minimumByteLength }
+  return { minimumByteLength, stringPositions }
 }
 
 //////////////////////////////////////////////

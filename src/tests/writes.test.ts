@@ -1,5 +1,5 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray, FieldString } from '..'
 
 // NOTE:
 // ALL THE WRITE TESTS ARE MADE ON THE ASSUMPTION THAT THE READ TESTS PASSED.
@@ -33,7 +33,8 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     c: Field.UNSIGNED_INT_32,
     d: Field.FLOAT_32,
     e: FieldFixedArray(Field.INT_8, 2),
-    f: Field.FLOAT_64
+    f: Field.FLOAT_64,
+    g: FieldString()
   })
 
   const random = Math.random()
@@ -44,7 +45,8 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     c: 4294967294,
     d: random,
     e: [40, -40],
-    f: random
+    f: random,
+    g: 'abcdefghi'
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -68,6 +70,8 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
   // truncated a Float64 to a Float32 so we must compare with epsilon
   assert(data.d - epsilon < random && data.d + epsilon > random)
   assert.equal(data.f, random)
+
+  assert.equal(data.g, 'abcdefghi')
 
   console.log(`[WRITE ${mode}] SimplePacket: PASS`)
 }
@@ -95,7 +99,8 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
       })
     ),
     h: Field.UNSIGNED_INT_32,
-    i: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5'])
+    i: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5']),
+    j: FieldArray(FieldString())
   })
 
   const serialized = Packet[`write${mode}`]({
@@ -120,7 +125,8 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
       f3: false,
       f4: false,
       f5: true
-    }
+    },
+    j: ['1', '2', 'abcdef']
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -168,6 +174,10 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
   assert.equal(data.i.f3, false)
   assert.equal(data.i.f4, false)
   assert.equal(data.i.f5, true)
+  assert.equal(data.j.length, 3)
+  assert.equal(data.j[0], '1')
+  assert.equal(data.j[1], '2')
+  assert.equal(data.j[2], 'abcdef')
 
   console.log(`[WRITE ${mode}] ComplexPacket: PASS`)
 }

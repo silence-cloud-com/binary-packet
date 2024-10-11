@@ -1,5 +1,6 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray } from '..'
+import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray, FieldString } from '..'
+import { encodeStringIntoDataView, growDataView } from '../buffers'
 
 function testReadEmptyPacket() {
   const PACKET_ID = 1
@@ -42,17 +43,18 @@ function testReadSimplePacket() {
     a: Field.UNSIGNED_INT_8,
     b: Field.UNSIGNED_INT_8,
     c: Field.INT_16,
-    d: FieldFixedArray(Field.INT_16, 3)
+    d: FieldFixedArray(Field.INT_16, 3),
+    e: FieldString()
   })
 
-  const expectedLength = 1 + 1 + 1 + 2 + 2 * 3
+  let expectedLength = 1 + 1 + 1 + 2 + 2 * 3 + 2
 
   assert(
     SimplePacket.minimumByteLength === expectedLength,
     `SimplePacket min len != ${expectedLength}`
   )
 
-  const view = new DataView(new ArrayBuffer(expectedLength))
+  let view = new DataView(new ArrayBuffer(expectedLength))
 
   view.setUint8(0, PACKET_ID)
   assert.equal(BinaryPacket.readPacketIdDataView(view), PACKET_ID)
@@ -66,6 +68,7 @@ function testReadSimplePacket() {
   assert.equal(data.d[0], 0)
   assert.equal(data.d[1], 0)
   assert.equal(data.d[2], 0)
+  assert.equal(data.e, '')
 
   view.setUint8(0, PACKET_ID)
   view.setUint8(1, 123)
@@ -74,6 +77,11 @@ function testReadSimplePacket() {
   view.setInt16(5, 1)
   view.setInt16(7, 18_000)
   view.setInt16(9, -32_768)
+  view.setUint16(11, 10)
+
+  expectedLength += 10
+  view = growDataView(view, expectedLength)
+  encodeStringIntoDataView(view, 13, '1234567890')
 
   data = SimplePacket.readDataView(view)
 
@@ -83,6 +91,7 @@ function testReadSimplePacket() {
   assert.equal(data.d[0], 1)
   assert.equal(data.d[1], 18_000)
   assert.equal(data.d[2], -32_768)
+  assert.equal(data.e, '1234567890')
 
   try {
     SimplePacket.readDataView(view, { offset: expectedLength })

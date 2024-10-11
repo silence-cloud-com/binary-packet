@@ -33,6 +33,7 @@ Currently, these kinds of `fields` are supported:
 | `Field.FLOAT_32` | 32 bits IEEE754 floating-point | | 4 |
 | `Field.FLOAT_64` | 64 bits IEEE754 floating-point | | 8 |
 | `BinaryPacket` | BinaryPacket "subpacket" | BinaryPacket | size(BinaryPacket) |
+| `FieldString` | **ASCII** or **single octet utf-8 chars** string | Up to 65536 chars | 2 + length |
 | `FieldArray` | Dynamically-sized array of one of the types above | Up to 256 elements | 1 + length \* size(Element) |
 | `FieldFixedArray` | Statically-sized array of one of the types above | Any pre-defined numbers of elements | length \* size(Element) |
 | `FieldBitFlags` | Boolean flags packed into a single 8 bits integer | Up to 8 boolean flags | 1 |
@@ -153,16 +154,19 @@ So, take these "performance" comparisons with a grain of salt; or, even better, 
 
 This library has been benchmarked against the following alternatives:
 
-- [msgpackr](https://www.npmjs.com/package/msgpackr) - A very popular, fast and battle-tested library. Currently offers more features than binary-packet, but it appears to be 2x-4x slower in writes and 3x-10x slower in reads (depends on the packet structure) - is also less type-safe.
+- [msgpackr](https://www.npmjs.com/package/msgpackr) - A very popular, fast and battle-tested library. Currently offers more features than binary-packet, but it always appears to be slower and is also less type-safe.
 - [restructure](https://www.npmjs.com/package/restructure) - An older, popular schema-based library, has some extra features like LazyArrays, but it is **much slower** than both binary-packet and msgpackr. And, sadly, easily crashes with complex structures.
 
 The benchmarks are executed on three different kinds of packets:
 
 - EmptyPacket: basically an empty javascript object.
-- SimplePacket: objects with just primitive fields and statically-sized arrays.
-- ComplexPacket: objects with primitives, statically-sized arrays, dynamically-sized arrays, bitflags and other nested objects/arrays.
+- SimplePacket: objects with just primitive fields, statically-sized arrays and a string.
+- ComplexPacket: objects with primitives, statically-sized arrays, dynamically-sized arrays, bitflags, a string, an array of strings and other nested objects/arrays.
 
-You can see and run the benchmarks yourself if you clone the repository and launch `npm run benchmark`.
+You can see and run the benchmarks yourself if you:
+
+- Clone the [repository](https://github.com/silence-cloud-com/binary-packet).
+- Launch `npm run benchmark`.
 
 ## Disclaimer
 
