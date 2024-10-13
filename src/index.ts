@@ -121,6 +121,14 @@ export function FieldString() {
 }
 
 /**
+ * Defines an optional BinaryPacket "subpacket" field. \
+ * When writing and reading packets it'll be possible to provide and receive `undefined` instead of a valid object.
+ */
+export function FieldOptional<T extends BinaryPacket<Definition>>(packet: T) {
+  return { optional: packet }
+}
+
+/**
  * Do not manually construct this type: an object of this kind is returned by a BinaryPacket `createVisitor` method. \
  * Used in the `BinaryPacket::visit` static method to perform a sort of "pattern matching" on an incoming packet (of yet unknown type) buffer.
  */
@@ -468,6 +476,23 @@ export class BinaryPacket<T extends Definition> {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           result[name][def.flags[bit]] = !!(flags & (1 << bit))
         }
+      } else if ('optional' in def) {
+        // Single optional "subpacket"
+        const hasSubPacket =
+          readFunctions[Field.UNSIGNED_INT_8](dataIn as any, offsetPointer.offset) !== 0
+
+        offsetPointer.offset += 1
+
+        if (hasSubPacket) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          result[name] = def.optional.read(
+            dataIn,
+            offsetPointer,
+            byteLength,
+            readFunctions,
+            decodeStringFunction
+          )
+        }
       } else {
         // Single "subpacket"
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -607,6 +632,35 @@ export class BinaryPacket<T extends Definition> {
 
         writeFunctions[Field.UNSIGNED_INT_8](buffer as any, flags, offsetPointer.offset)
         offsetPointer.offset += 1
+      } else if ('optional' in def) {
+        if (data) {
+          writeFunctions[Field.UNSIGNED_INT_8](buffer as any, 1, offsetPointer.offset)
+          offsetPointer.offset += 1
+
+          byteLength += def.optional.minimumByteLength
+          maxByteLength += def.optional.minimumByteLength
+
+          if (buffer.byteLength < maxByteLength) {
+            buffer = growBufferFunction(buffer, maxByteLength)
+          }
+
+          buffer = def.optional.write(
+            buffer,
+            data as ToJson<Definition>,
+            offsetPointer,
+            byteLength,
+            maxByteLength,
+            writeFunctions,
+            growBufferFunction,
+            encodeStringFunction
+          )
+
+          byteLength = offsetPointer.offset
+          maxByteLength = buffer.byteLength
+        } else {
+          writeFunctions[Field.UNSIGNED_INT_8](buffer as any, 0, offsetPointer.offset)
+          offsetPointer.offset += 1
+        }
       } else {
         // Single "subpacket"
         buffer = def.write(
@@ -703,6 +757,7 @@ export type Definition = {
     | MaybeArray<BinaryPacket<Definition>>
     | MaybeArray<''>
     | { flags: BitFlags }
+    | { optional: BinaryPacket<Definition> }
 }
 
 type MaybeArray<T> = T | [itemType: T] | [itemType: T, length: number]
@@ -731,9 +786,11 @@ export type ToJson<T extends Definition> = {
         ? ToJson<BPDef>
         : T[K] extends { flags: infer FlagsArray extends BitFlags }
           ? BitFlagsToJson<FlagsArray>
-          : T[K] extends ''
-            ? string
-            : number
+          : T[K] extends { optional: BinaryPacket<infer BPDef extends Definition> }
+            ? ToJson<BPDef> | undefined
+            : T[K] extends ''
+              ? string
+              : number
 }
 
 /**
@@ -800,8 +857,9 @@ function inspectEntries(entries: Entries) {
       minimumByteLength += type.minimumByteLength
       stringPositions[2][name] = type
     } else if (typeof type === 'object') {
-      // BitFlags
+      // BitFlags & Optionals
       // BitFlags are always 1 byte long, because they can hold up to 8 booleans
+      // Optionals minimum is 1 byte long, because it holds whether the subpacket is present or not
       minimumByteLength += 1
     } else if (type === '') {
       // String

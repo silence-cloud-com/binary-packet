@@ -37,6 +37,7 @@ Currently, these kinds of `fields` are supported:
 | `FieldArray` | Dynamically-sized array of one of the types above | Up to 256 elements | 1 + length \* size(Element) |
 | `FieldFixedArray` | Statically-sized array of one of the types above | Any pre-defined numbers of elements | length \* size(Element) |
 | `FieldBitFlags` | Boolean flags packed into a single 8 bits integer | Up to 8 boolean flags | 1 |
+| `FieldOptional` | Optional BinaryPacket "subpacket" | BinaryPacket \| undefined | 1 + size(BinaryPacket) |
 
 As shown, both arrays and nested objects ("subpackets") are supported. \
 Note: `FieldFixedArray` is much more memory efficient and performant than `FieldArray`, but require a pre-defined length.

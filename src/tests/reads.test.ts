@@ -1,5 +1,13 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray, FieldString } from '..'
+import {
+  BinaryPacket,
+  Field,
+  FieldArray,
+  FieldBitFlags,
+  FieldFixedArray,
+  FieldOptional,
+  FieldString
+} from '..'
 import { encodeStringIntoDataView, growDataView } from '../buffers'
 
 function testReadEmptyPacket() {
@@ -38,16 +46,20 @@ function testReadEmptyPacket() {
 
 function testReadSimplePacket() {
   const PACKET_ID = 1
+  const OPT_SUBPACKET_ID = 2
+
+  const OptSubPacket = BinaryPacket.define(OPT_SUBPACKET_ID, { a: Field.UNSIGNED_INT_32 })
 
   const SimplePacket = BinaryPacket.define(PACKET_ID, {
     a: Field.UNSIGNED_INT_8,
     b: Field.UNSIGNED_INT_8,
     c: Field.INT_16,
     d: FieldFixedArray(Field.INT_16, 3),
-    e: FieldString()
+    e: FieldString(),
+    f: FieldOptional(OptSubPacket)
   })
 
-  let expectedLength = 1 + 1 + 1 + 2 + 2 * 3 + 2
+  let expectedLength = 1 + 1 + 1 + 2 + 2 * 3 + 2 + 1
 
   assert(
     SimplePacket.minimumByteLength === expectedLength,
@@ -69,6 +81,7 @@ function testReadSimplePacket() {
   assert.equal(data.d[1], 0)
   assert.equal(data.d[2], 0)
   assert.equal(data.e, '')
+  assert.equal(data.f, undefined)
 
   view.setUint8(0, PACKET_ID)
   view.setUint8(1, 123)
@@ -83,6 +96,13 @@ function testReadSimplePacket() {
   view = growDataView(view, expectedLength)
   encodeStringIntoDataView(view, 13, '1234567890')
 
+  view.setUint8(23, 1)
+  expectedLength += OptSubPacket.minimumByteLength
+
+  view = growDataView(view, expectedLength)
+  view.setUint8(24, OPT_SUBPACKET_ID)
+  view.setUint32(25, 2 ** 32 - 1)
+
   data = SimplePacket.readDataView(view)
 
   assert(data.a === 123)
@@ -92,6 +112,7 @@ function testReadSimplePacket() {
   assert.equal(data.d[1], 18_000)
   assert.equal(data.d[2], -32_768)
   assert.equal(data.e, '1234567890')
+  assert.equal(data.f?.a, 2 ** 32 - 1)
 
   try {
     SimplePacket.readDataView(view, { offset: expectedLength })
@@ -111,6 +132,7 @@ function testReadSimplePacket() {
 function testReadComplexPacket() {
   const PACKET_ID = 1
   const SUBPACKET_ID = 2
+  const OPTIONAL_SUBPACKET_ID = 3
 
   const ComplexPacket = BinaryPacket.define(PACKET_ID, {
     a: Field.UNSIGNED_INT_8,
@@ -123,10 +145,11 @@ function testReadComplexPacket() {
     }),
     f: Field.FLOAT_64,
     g: FieldFixedArray(Field.INT_8, 4),
-    h: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'])
+    h: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8']),
+    i: FieldOptional(BinaryPacket.define(OPTIONAL_SUBPACKET_ID, { a: Field.UNSIGNED_INT_8 }))
   })
 
-  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8 + 1 * 4 + 1
+  const expectedMinLength = 1 + 1 + 1 + 2 + 1 + 1 + 256 * 0 + (1 + 1 + 256 * 0) + 8 + 1 * 4 + 1 + 1
   assert.equal(ComplexPacket.minimumByteLength, expectedMinLength)
 
   let view = new DataView(new ArrayBuffer(expectedMinLength))
@@ -170,6 +193,7 @@ function testReadComplexPacket() {
   assert.equal(data.h.f6, false)
   assert.equal(data.h.f7, false)
   assert.equal(data.h.f8, true)
+  assert.equal(data.i, undefined)
 
   try {
     ComplexPacket.readDataView(view, { offset: expectedMinLength })

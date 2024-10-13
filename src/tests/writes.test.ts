@@ -1,5 +1,13 @@
 import assert from 'assert/strict'
-import { BinaryPacket, Field, FieldArray, FieldBitFlags, FieldFixedArray, FieldString } from '..'
+import {
+  BinaryPacket,
+  Field,
+  FieldArray,
+  FieldBitFlags,
+  FieldFixedArray,
+  FieldOptional,
+  FieldString
+} from '..'
 
 // NOTE:
 // ALL THE WRITE TESTS ARE MADE ON THE ASSUMPTION THAT THE READ TESTS PASSED.
@@ -26,6 +34,7 @@ function testWriteEmptyPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') {
 
 function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') {
   const PACKET_ID = 1
+  const OPT_SUBPACKET_ID = 2
 
   const Packet = BinaryPacket.define(PACKET_ID, {
     a: Field.INT_8,
@@ -34,7 +43,8 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     d: Field.FLOAT_32,
     e: FieldFixedArray(Field.INT_8, 2),
     f: Field.FLOAT_64,
-    g: FieldString()
+    g: FieldString(),
+    h: FieldOptional(BinaryPacket.define(OPT_SUBPACKET_ID, { a: Field.UNSIGNED_INT_8 }))
   })
 
   const random = Math.random()
@@ -46,7 +56,8 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
     d: random,
     e: [40, -40],
     f: random,
-    g: 'abcdefghi'
+    g: 'abcdefghi',
+    h: undefined
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -72,6 +83,7 @@ function testWriteSimplePacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer') 
   assert.equal(data.f, random)
 
   assert.equal(data.g, 'abcdefghi')
+  assert.equal(data.h, undefined)
 
   console.log(`[WRITE ${mode}] SimplePacket: PASS`)
 }
@@ -80,6 +92,7 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
   const PACKET_ID = 1
   const SUBPACKET_ID = 2
   const SUBPACKET_ITEM_ID = 3
+  const OPT_SUBPACKET_ID = 4
 
   const Packet = BinaryPacket.define(PACKET_ID, {
     a: Field.INT_8,
@@ -100,7 +113,8 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
     ),
     h: Field.UNSIGNED_INT_32,
     i: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5']),
-    j: FieldArray(FieldString())
+    j: FieldArray(FieldString()),
+    k: FieldOptional(BinaryPacket.define(OPT_SUBPACKET_ID, { a: Field.UNSIGNED_INT_8 }))
   })
 
   const serialized = Packet[`write${mode}`]({
@@ -126,7 +140,10 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
       f4: false,
       f5: true
     },
-    j: ['1', '2', 'abcdef']
+    j: ['1', '2', 'abcdef'],
+    k: {
+      a: 254
+    }
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -178,6 +195,7 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
   assert.equal(data.j[0], '1')
   assert.equal(data.j[1], '2')
   assert.equal(data.j[2], 'abcdef')
+  assert.equal(data.k?.a, 254)
 
   console.log(`[WRITE ${mode}] ComplexPacket: PASS`)
 }
