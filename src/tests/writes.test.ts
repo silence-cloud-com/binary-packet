@@ -6,7 +6,8 @@ import {
   FieldBitFlags,
   FieldFixedArray,
   FieldOptional,
-  FieldString
+  FieldString,
+  SequentialSerializer
 } from '..'
 
 // NOTE:
@@ -114,8 +115,19 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
     h: Field.UNSIGNED_INT_32,
     i: FieldBitFlags(['f1', 'f2', 'f3', 'f4', 'f5']),
     j: FieldArray(FieldString()),
-    k: FieldOptional(BinaryPacket.define(OPT_SUBPACKET_ID, { a: Field.UNSIGNED_INT_8 }))
+    k: FieldOptional(BinaryPacket.define(OPT_SUBPACKET_ID, { a: Field.UNSIGNED_INT_8 })),
+    sequential: FieldArray(Field.INT_32)
   })
+
+  const map = new Map([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+    [5, 5]
+  ])
+
+  const serializer = new SequentialSerializer(map.values(), map.size)
 
   const serialized = Packet[`write${mode}`]({
     a: -128,
@@ -143,7 +155,8 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
     j: ['1', '2', 'abcdef'],
     k: {
       a: 254
-    }
+    },
+    sequential: serializer
   })
 
   let data: ReturnType<(typeof Packet)['read']>
@@ -196,6 +209,9 @@ function testWriteComplexPacket(mode: 'NodeBuffer' | 'DataView' | 'ArrayBuffer')
   assert.equal(data.j[1], '2')
   assert.equal(data.j[2], 'abcdef')
   assert.equal(data.k?.a, 254)
+  assert(Array.isArray(data.sequential))
+  assert.equal(data.sequential.length, map.size)
+  assert.deepEqual(data.sequential, Array.from(map.values()))
 
   console.log(`[WRITE ${mode}] ComplexPacket: PASS`)
 }

@@ -89,6 +89,31 @@ export function FieldFixedArray<
   return [item, length]
 }
 
+/**
+ * Utility class that allows serializing arrays through any kind of iterable, as long as the number of elements is known beforehand. \
+ * Needed to skip the overhead of duplicating the data into an actual array just for it to be serialized straight away and trashed.
+ */
+export class SequentialSerializer<T> implements Iterable<T> {
+  constructor(
+    private readonly iterable: Iterable<T>,
+    public readonly length: number
+  ) {}
+
+  [Symbol.iterator]() {
+    return this.iterable[Symbol.iterator]()
+  }
+}
+
+/**
+ * Either an array or a SequentialSerializer<T>.
+ *
+ * Note: when a packet is **read**, it will **always** be a standard array: the SequentialSerializer \
+ * is just a utility to serialize iterators avoiding data duplication and array-creation overheads.
+ */
+type SequentiallySerializable<T, IsRead extends boolean> = IsRead extends true
+  ? T[]
+  : T[] | SequentialSerializer<T>
+
 type BitFlags = (string[] | ReadonlyArray<string>) & {
   length: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 }
@@ -239,7 +264,7 @@ export class BinaryPacket<T extends Definition> {
     dataIn: Buffer,
     offsetPointer = { offset: 0 },
     byteLength = dataIn.byteLength
-  ): ToJson<T> {
+  ): ToJson<T, true> {
     return this.read(
       dataIn,
       offsetPointer,
@@ -259,7 +284,7 @@ export class BinaryPacket<T extends Definition> {
     dataIn: DataView,
     offsetPointer = { offset: 0 },
     byteLength = dataIn.byteLength
-  ): ToJson<T> {
+  ): ToJson<T, true> {
     return this.read(dataIn, offsetPointer, byteLength, GET_FUNCTION, decodeStringFromDataView)
   }
 
@@ -353,6 +378,25 @@ export class BinaryPacket<T extends Definition> {
     return [this, onVisit]
   }
 
+  sequentialSerializer(numElements: number, dataOut: Iterable<ToJson<T>>) {
+    const byteLength = this.minimumByteLength * numElements
+    const buffer = Buffer.allocUnsafe(byteLength)
+    const offsetPointer = { offset: 0 }
+
+    for (const element of dataOut) {
+      this.write(
+        buffer,
+        element,
+        offsetPointer,
+        byteLength,
+        byteLength,
+        SET_FUNCTION_BUF,
+        growNodeBuffer,
+        encodeStringIntoNodeBuffer
+      )
+    }
+  }
+
   /// PRIVATE
 
   private readonly entries: Entries
@@ -390,7 +434,7 @@ export class BinaryPacket<T extends Definition> {
     byteLength: number,
     readFunctions: typeof GET_FUNCTION | typeof GET_FUNCTION_BUF,
     decodeStringFunction: (dataIn: Buf, byteOffset: number, strlen: number) => string
-  ): ToJson<T> {
+  ): ToJson<T, true> {
     if (byteLength + offsetPointer.offset < this.minimumByteLength) {
       throw new Error(
         `There is no space available to fit a packet of type ${this.packetId} at offset ${offsetPointer.offset}`
@@ -506,7 +550,7 @@ export class BinaryPacket<T extends Definition> {
       }
     }
 
-    return result as ToJson<T>
+    return result as ToJson<T, true>
   }
 
   private write<Buf extends DataView | Buffer>(
@@ -528,7 +572,7 @@ export class BinaryPacket<T extends Definition> {
       if (Array.isArray(def)) {
         // Could be both an array of just numbers or "subpackets"
 
-        const length = (data as any[]).length
+        const length = (data as SequentiallySerializable<any, false>).length
 
         // Check if it is a dynamically-sized array, if it is, the length of the array must be serialized in the buffer before its elements
         // Explicitly check for undefined and not falsy values because it could be a statically-sized array of 0 elements.
@@ -601,7 +645,7 @@ export class BinaryPacket<T extends Definition> {
 
             // It seems like looping over each element is actually much faster than using TypedArrays bulk copy.
             // TODO: properly benchmark with various array sizes to see if it's actually the case.
-            for (const number of data as number[]) {
+            for (const number of data as SequentiallySerializable<number, false>) {
               writeFunctions[itemType](buffer as any, number, offsetPointer.offset)
               offsetPointer.offset += itemSize
             }
@@ -769,25 +813,25 @@ type BitFlagsToJson<FlagsArray extends BitFlags> = {
 /**
  * Meta-type that converts a `Definition` schema to the type of the actual JavaScript object that will be written into a packet or read from. \
  */
-export type ToJson<T extends Definition> = {
+export type ToJson<T extends Definition, IsRead extends boolean = false> = {
   [K in keyof T]: T[K] extends [infer Item]
     ? Item extends BinaryPacket<infer BPDef>
-      ? ToJson<BPDef>[]
+      ? SequentiallySerializable<ToJson<BPDef, IsRead>, IsRead>
       : Item extends ''
-        ? string[]
-        : number[]
+        ? SequentiallySerializable<string, IsRead>
+        : SequentiallySerializable<number, IsRead>
     : T[K] extends [infer Item, infer Length]
       ? Item extends BinaryPacket<infer BPDef>
-        ? ToJson<BPDef>[] & { length: Length }
+        ? SequentiallySerializable<ToJson<BPDef, IsRead>, IsRead> & { length: Length }
         : Item extends ''
           ? string[] & { length: Length }
           : number[] & { length: Length }
       : T[K] extends BinaryPacket<infer BPDef>
-        ? ToJson<BPDef>
+        ? ToJson<BPDef, IsRead>
         : T[K] extends { flags: infer FlagsArray extends BitFlags }
           ? BitFlagsToJson<FlagsArray>
           : T[K] extends { optional: BinaryPacket<infer BPDef extends Definition> }
-            ? ToJson<BPDef> | undefined
+            ? ToJson<BPDef, IsRead> | undefined
             : T[K] extends ''
               ? string
               : number
