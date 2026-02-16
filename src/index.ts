@@ -929,15 +929,15 @@ if (hasNodeBuffers) {
   SET_FUNCTION_BUF[Field.INT_8] = (view, value, offset) => view.writeInt8(value, offset)
 
   SET_FUNCTION_BUF[Field.UNSIGNED_INT_16] = (view, value, offset) =>
-    view.writeUint16LE(value, offset)
-  SET_FUNCTION_BUF[Field.INT_16] = (view, value, offset) => view.writeInt16LE(value, offset)
+    view.writeUint16BE(value, offset)
+  SET_FUNCTION_BUF[Field.INT_16] = (view, value, offset) => view.writeInt16BE(value, offset)
 
   SET_FUNCTION_BUF[Field.UNSIGNED_INT_32] = (view, value, offset) =>
-    view.writeUint32LE(value, offset)
-  SET_FUNCTION_BUF[Field.INT_32] = (view, value, offset) => view.writeInt32LE(value, offset)
-  SET_FUNCTION_BUF[Field.FLOAT_32] = (view, value, offset) => view.writeFloatLE(value, offset)
+    view.writeUint32BE(value, offset)
+  SET_FUNCTION_BUF[Field.INT_32] = (view, value, offset) => view.writeInt32BE(value, offset)
+  SET_FUNCTION_BUF[Field.FLOAT_32] = (view, value, offset) => view.writeFloatBE(value, offset)
 
-  SET_FUNCTION_BUF[Field.FLOAT_64] = (view, value, offset) => view.writeDoubleLE(value, offset)
+  SET_FUNCTION_BUF[Field.FLOAT_64] = (view, value, offset) => view.writeDoubleBE(value, offset)
 }
 
 const GET_FUNCTION_BUF = Array(8) as ((nodeBuffer: Buffer, offset: number) => number)[]
@@ -946,12 +946,12 @@ if (hasNodeBuffers) {
   GET_FUNCTION_BUF[Field.UNSIGNED_INT_8] = (view, offset) => view.readUint8(offset)
   GET_FUNCTION_BUF[Field.INT_8] = (view, offset) => view.readInt8(offset)
 
-  GET_FUNCTION_BUF[Field.UNSIGNED_INT_16] = (view, offset) => view.readUint16LE(offset)
-  GET_FUNCTION_BUF[Field.INT_16] = (view, offset) => view.readInt16LE(offset)
+  GET_FUNCTION_BUF[Field.UNSIGNED_INT_16] = (view, offset) => view.readUint16BE(offset)
 
-  GET_FUNCTION_BUF[Field.UNSIGNED_INT_32] = (view, offset) => view.readUint32LE(offset)
-  GET_FUNCTION_BUF[Field.INT_32] = (view, offset) => view.readInt32LE(offset)
-  GET_FUNCTION_BUF[Field.FLOAT_32] = (view, offset) => view.readFloatLE(offset)
+  GET_FUNCTION_BUF[Field.INT_16] = (view, offset) => view.readInt16BE(offset)
+  GET_FUNCTION_BUF[Field.UNSIGNED_INT_32] = (view, offset) => view.readUint32BE(offset)
 
-  GET_FUNCTION_BUF[Field.FLOAT_64] = (view, offset) => view.readDoubleLE(offset)
+  GET_FUNCTION_BUF[Field.INT_32] = (view, offset) => view.readInt32BE(offset)
+  GET_FUNCTION_BUF[Field.FLOAT_32] = (view, offset) => view.readFloatBE(offset)
+  GET_FUNCTION_BUF[Field.FLOAT_64] = (view, offset) => view.readDoubleBE(offset)
 }
