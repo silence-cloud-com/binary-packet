@@ -147,6 +147,37 @@ BinaryPacket.visitNodeBuffer(
 )
 ```
 
+## Sequential Serializer
+
+This library also provides an opinionated way to serialize any javascript Iterable, as long as their size is known beforehand. \
+This is extra convenient when dealing with such iterables because it allows serializing all the data without having to allocate for temporary arrays, which was necessary in previous versions and in many other similar libraries.
+
+Usage:
+
+```typescript
+// JavaScript Maps are Iterable, would also work with generators and custom classes that correctly implement the Iterable interface.
+import { BinaryPacket, Field, FieldArray, SequentialSerializer } from 'binary-packet'
+
+const Packet = BinaryPacket.define(0, {
+  numbers: FieldArray(Field.INT_32)
+})
+
+const map = new Map([
+  [1, 2],
+  [2, 4],
+  [3, 6]
+])
+
+// Example serializer that serializes only the values of a map, without the overhead of intermediate arrays.
+const serializer = new SequentialSerializer(map.values(), map.size)
+
+const buffer = Packet.writeNodeBuffer({
+  numbers: serializer
+})
+```
+
+Note: if an array is already available, just use that instead. The SequentialSerializer is meant for more complex iterables.
+
 ## Benchmarks & Alternatives
 
 Benchmarks are not always meant to be taken seriously. \
