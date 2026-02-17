@@ -1,6 +1,6 @@
 {
   "name": "binary-packet",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Lightweight and hyper-fast, zero-dependencies, TypeScript-first, schema-based binary packets serialization and deserialization library",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -47,17 +47,17 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "colors": "^1.4.0",
-    "eslint": "^9.12.0",
-    "msgpackr": "^1.11.0",
-    "prettier": "^3.3.3",
-    "prettier-plugin-organize-imports": "^4.1.0",
+    "eslint": "^10.0.0",
+    "msgpackr": "^1.11.8",
+    "prettier": "^3.8.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
     "restructure": "^3.0.2",
     "ts-node": "^10.9.2",
-    "tsup": "^8.3.0",
-    "typescript": "^5.6.2",
-    "typescript-eslint": "^8.8.1"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.0"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   }
 }
